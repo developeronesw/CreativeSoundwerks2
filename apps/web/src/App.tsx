@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Link, Routes, Route, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { Home, Music2, Film, Tv, Users, UploadCloud, Megaphone, Crown, Search, ShoppingCart, ShieldCheck, LogOut, Menu, X, ArrowRight, Play, Check, CreditCard, ServerCog, Radio, BarChart3, FolderOpen, Headphones, Settings, LockKeyhole } from "lucide-react";
-import { api, money, upload, type User, type Plan, type Media, type CartItem } from "./api";
+import { api, money, uploadToLibrary, type LibraryAsset, type User, type Plan, type Media, type CartItem } from "./api";
+import MediaLibrary from "./MediaLibrary";
 import { PlayerProvider } from "./Player";
 import { FeatureTiles, MediaCard, Plans, Section } from "./components";
 
@@ -13,6 +14,7 @@ function Shell({children,user,logout,setup}:{children:ReactNode;user:User|null;l
  useEffect(()=>setMobile(false),[loc.pathname]);
  return <div className="app-shell">
  <aside className={"sidebar "+(mobile?"sidebar-visible":"")}><Brand/><nav>{navigation.map(n=><NavLink key={n.to} end={n.to==="/"} to={n.to} className={({isActive})=>"nav-item "+(isActive?"active":"")}><n.icon size={19}/>{n.label}</NavLink>)}
+ {(user?.role==="admin"||user?.role==="creator")&&<NavLink to="/library" className="nav-item"><FolderOpen size={19}/>Media Library</NavLink>}
  {user?.role==="admin"&&<NavLink to="/admin" className="nav-item"><Settings size={19}/>Administrator</NavLink>}
  </nav><div className="sidebar-foot"><div className="sidebar-mark">✦</div><strong>Creative independence.</strong><small>Your stories. Your audience. Your platform.</small></div></aside>
  {mobile&&<button className="mobile-overlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}
@@ -60,20 +62,56 @@ function SetupPage({required,onAuth}:{required:boolean|undefined;onAuth:Refresh}
  return <div className="setup-layout"><div className="setup-aside"><ShieldCheck size={46}/><div className="eyebrow">FIRST RUN INSTALLER</div><h1>Welcome to your new Creative Soundwerks.</h1><p>Securely initialize your self-hosted platform. The first administrator is created with an environment-only setup token.</p><div className="setup-steps"><span className="now">01 · Create administrator</span><span>02 · Configure memberships</span><span>03 · Connect Stripe</span><span>04 · Upload your first release</span></div></div><form className="auth-form setup-form" onSubmit={submit}><h2>Create first admin account</h2><p>This setup is only available before the first user exists.</p><label>Administrator name<input required minLength={2} value={displayName} onChange={e=>setName(e.target.value)}/></label><label>Administrator email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Strong password (12+ characters)<input type="password" required minLength={12} value={password} onChange={e=>setPassword(e.target.value)}/></label><label>Private setup token from server .env<input type="password" required minLength={24} value={token} onChange={e=>setToken(e.target.value)}/></label>{error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Initializing...":"Create Administrator & Continue"} <ArrowRight size={17}/></button><small>Keep the setup token private. Never include it in client source or a public repository.</small></form></div>;
 }
 function UploadPage({user,refresh}:{user:User|null;refresh:Refresh}){
- const [kind,setKind]=useState("track"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[genre,setGenre]=useState(""),[price,setPrice]=useState("0"),[file,setFile]=useState<File|null>(null),[mine,setMine]=useState<Media[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState(false);
- useEffect(()=>{if(user&&(user.role==="admin"||user.role==="creator"))api<{items:Media[]}>("/media/mine").then(r=>setMine(r.items)).catch(()=>{});},[user]);
+ const [kind,setKind]=useState("track"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[genre,setGenre]=useState(""),[price,setPrice]=useState("0"),[file,setFile]=useState<File|null>(null),[selected,setSelected]=useState(""),[library,setLibrary]=useState<LibraryAsset[]>([]),[mine,setMine]=useState<Media[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ async function load(){
+  if(!user||user.role==="fan")return;
+  try{
+   const [a,b]=await Promise.all([api<{items:Media[]}>("/media/mine"),api<{items:LibraryAsset[]}>("/library")]);
+   setMine(a.items);setLibrary(b.items);
+  }catch(e){setError((e as Error).message);}
+ }
+ useEffect(()=>{load();},[user?.id]);
  if(!user)return <div className="empty-state"><LockKeyhole size={38}/><h2>Sign in to publish</h2><Link className="btn-gold" to="/join">Create creator account</Link></div>;
- if(user.role==="fan")return <div className="empty-state"><Users size={40}/><h2>Creator access required</h2><p>Uploads are available to approved creator and administrator accounts.</p></div>;
- async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");try{
-  const {id}=await api<{id:string}>("/media",{method:"POST",body:JSON.stringify({kind,title,description,genre,priceCents:Math.round(Number(price)*100)})});
-  if(file)await upload("/media/"+id+"/upload",file);
-  await api("/media/"+id,{method:"PATCH",body:JSON.stringify({visibility:"published"})});
-  setTitle("");setDescription("");setGenre("");setFile(null);setPrice("0");
-  const r=await api<{items:Media[]}>("/media/mine");setMine(r.items);await refresh();
- }catch(e){setError((e as Error).message+" — draft is retained if creation succeeded.");}finally{setBusy(false);}}
- async function toggle(m:Media){try{await api("/media/"+m.id,{method:"PATCH",body:JSON.stringify({visibility:m.visibility==="published"?"draft":"published"})});setMine((await api<{items:Media[]}>("/media/mine")).items);await refresh();}catch(e){setError((e as Error).message);}}
- return <><div className="page-heading"><span className="eyebrow">YOUR CREATIVE STUDIO</span><h1>Publish something extraordinary.</h1><p>Upload and manage your own releases. Nobody else can open your private draft or upload area.</p></div><div className="creator-layout"><form className="surface-card upload-form" onSubmit={submit}><h2>New release</h2><label>Content type<select value={kind} onChange={e=>setKind(e.target.value)}>{[["track","Song / Track"],["album","Album"],["music_video","Music Video"],["movie","Feature Film"],["short_film","Short Film"],["tv_show","TV Series"],["episode","TV Episode"],["trailer","Trailer"]].map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label><label>Title<input required minLength={2} value={title} onChange={e=>setTitle(e.target.value)}/></label><label>Genre<input value={genre} onChange={e=>setGenre(e.target.value)}/></label><label>Description<textarea value={description} onChange={e=>setDescription(e.target.value)} rows={4}/></label><label>Purchase price (USD)<input type="number" min={0} step=".01" value={price} onChange={e=>setPrice(e.target.value)}/></label><label className="file-drop"><UploadCloud size={33}/><strong>{file?file.name:"Choose audio or video file"}</strong><small>Private VPS storage · Max 1 GB per file</small><input type="file" accept="audio/*,video/*" onChange={e=>setFile(e.target.files?.[0]||null)}/></label>{error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Publishing...":"Create and Publish"} <UploadCloud size={17}/></button></form>
- <div className="surface-card"><h2>My content <span className="muted">({mine.length})</span></h2>{mine.length?mine.map(m=><div key={m.id} className="row-entry"><div><strong>{m.title}</strong><small>{m.kind.replaceAll("_"," ")} · {m.visibility} · {money(m.price_cents)}</small></div><button className="btn-outline" onClick={()=>toggle(m)}>{m.visibility==="published"?"Unpublish":"Publish"}</button></div>):<p className="muted">No releases yet. Your library is private until you publish.</p>}</div></div></>;
+ if(user.role==="fan")return <div className="empty-state"><Users size={40}/><h2>Creator access required</h2><p>Uploads are available to creators and administrators only.</p></div>;
+ const collection=["album","tv_show"].includes(kind);
+ const mediaType=kind==="track"?"audio":"video";
+ const compatible=library.filter(a=>a.media_type===mediaType);
+ async function submit(e:FormEvent){
+  e.preventDefault();setBusy(true);setError("");
+  try{
+   const {id}=await api<{id:string}>("/media",{method:"POST",body:JSON.stringify({kind,title,description,genre,priceCents:Math.round(Number(price)*100)})});
+   if(!collection){
+    const assetId=file?(await uploadToLibrary(file)).item.id:selected;
+    if(!assetId)throw new Error("Select a file from your Media Library, or upload a new audio/video file");
+    await api("/media/"+id+"/asset",{method:"PUT",body:JSON.stringify({assetId})});
+   }
+   await api("/media/"+id,{method:"PATCH",body:JSON.stringify({visibility:"published"})});
+   setTitle("");setDescription("");setGenre("");setFile(null);setPrice("0");setSelected("");
+   await load();await refresh();
+  }catch(e){setError((e as Error).message+" — the draft is kept in your account if it was created.");}
+  finally{setBusy(false);}
+ }
+ async function toggle(m:Media){
+  try{await api("/media/"+m.id,{method:"PATCH",body:JSON.stringify({visibility:m.visibility==="published"?"draft":"published"})});await load();await refresh();}
+  catch(e){setError((e as Error).message);}
+ }
+ return <><div className="page-heading"><span className="eyebrow">YOUR CREATIVE STUDIO</span><h1>Publish something extraordinary.</h1><p>Upload music and videos into one central Media Library. Your saved files can be reused across releases, and other creators cannot access them.</p></div>
+ <div className="creator-layout">
+ <form className="surface-card upload-form" onSubmit={submit}><h2>New release</h2>
+ <label>Content type<select value={kind} onChange={e=>{setKind(e.target.value);setSelected("");setFile(null);}}>{[["track","Song / Track"],["album","Album"],["music_video","Music Video"],["movie","Feature Film"],["short_film","Short Film"],["tv_show","TV Series"],["episode","TV Episode"],["trailer","Trailer"]].map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>
+ <label>Title<input required minLength={2} value={title} onChange={e=>setTitle(e.target.value)}/></label>
+ <label>Genre<input value={genre} onChange={e=>setGenre(e.target.value)}/></label>
+ <label>Description<textarea value={description} onChange={e=>setDescription(e.target.value)} rows={4}/></label>
+ <label>Purchase price (USD)<input type="number" min={0} step=".01" value={price} onChange={e=>setPrice(e.target.value)}/></label>
+ {!collection&&<div className="asset-select"><strong>Choose your {mediaType==="audio"?"music":"video"} file</strong>
+ <label>Use an existing Media Library file<select value={selected} onChange={e=>{setSelected(e.target.value);setFile(null);}}><option value="">Select an owned file…</option>{compatible.map(a=><option value={a.id} key={a.id}>{a.original_name}</option>)}</select></label>
+ <div className="muted">or upload a new file into your Media Library:</div>
+ <label className="file-drop"><UploadCloud size={33}/><strong>{file?file.name:"Choose audio/video file"}</strong><small>MP3, WAV, FLAC, OGG, M4A, MP4, MOV, WEBM only · 1 GB maximum</small><input type="file" accept={mediaType==="audio"?".mp3,.wav,.flac,.ogg,.m4a,audio/*":".mp4,.mov,.webm,video/*"} onChange={e=>{setFile(e.target.files?.[0]||null);setSelected("");}}/></label>
+ <Link to="/library" className="small-link">Open full Media Library <ArrowRight size={14}/></Link>
+ </div>}
+ {error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Publishing...":"Create and Publish"} <UploadCloud size={17}/></button></form>
+ <div className="surface-card"><h2>My releases <span className="muted">({mine.length})</span></h2>{mine.length?mine.map(m=><div key={m.id} className="row-entry"><div><strong>{m.title}</strong><small>{m.kind.replaceAll("_"," ")} · {m.visibility} · {money(m.price_cents)}</small></div><button className="btn-outline" onClick={()=>toggle(m)}>{m.visibility==="published"?"Unpublish":"Publish"}</button></div>):<p className="muted">No releases yet. Your media files stay private until attached to a published release.</p>}</div>
+ </div></>;
 }
 function PricingPage({plans,user}:{plans:Plan[];user:User|null}){return <><div className="page-heading"><span className="eyebrow">FLEXIBLE MEMBERSHIPS</span><h1>Plans for every creative journey.</h1><p>Membership prices are set by the platform administrator and verified by the billing server.</p></div><Section title="For creators"><Plans plans={plans.filter(p=>p.audience==="creator")} user={user}/></Section><Section title="For listeners and watchers"><Plans plans={plans.filter(p=>p.audience==="fan")} user={user}/></Section></>;}
 function CartPage({user}:{user:User|null}){
@@ -92,7 +130,7 @@ function AdminPage({user,plans,refresh}:{user:User|null;plans:Plan[];refresh:Ref
  const p=plans.find(x=>x.id===selected);
  function edit(x:Plan){setSelected(x.id);setPrice((x.amount_cents/100).toFixed(2));setLimit(String(x.upload_limit));setError("");setSaved("");}
  async function save(e:FormEvent){e.preventDefault();if(!p)return;setError("");setSaved("");try{await api("/admin/plans/"+p.id,{method:"PATCH",body:JSON.stringify({amountCents:Math.round(Number(price)*100),uploadLimit:Number(limit)})});await refresh();setSaved("Plan saved. Existing Stripe subscribers retain their current billing price.");}catch(e){setError((e as Error).message);}}
- return <><div className="page-heading"><span className="eyebrow">OWNER CONSOLE</span><h1>Creative Soundwerks Administration</h1><p>Manage local platform settings, commercial plans and your creator ecosystem.</p></div><div className="stats-grid">{[["Accounts",stats?.users??"—",Users],["Media titles",stats?.media??"—",Film],["Paid orders",stats?.orders??"—",ShoppingCart],["Active subscriptions",stats?.subscriptions??"—",Crown]].map(([k,v,Icon])=>{const I=Icon as typeof Users;return <div className="stat-card" key={String(k)}><I size={23}/><span>{String(k)}</span><strong>{String(v)}</strong></div>})}</div>
+ return <><div className="page-heading"><span className="eyebrow">OWNER CONSOLE</span><h1>Creative Soundwerks Administration</h1><p>Manage local platform settings, commercial plans and your creator ecosystem.</p></div><div className="admin-library-link"><Link to="/library" className="btn-gold"><FolderOpen size={17}/> Open Unified Media Library (all users)</Link></div><div className="stats-grid">{[["Accounts",stats?.users??"—",Users],["Media titles",stats?.media??"—",Film],["Paid orders",stats?.orders??"—",ShoppingCart],["Active subscriptions",stats?.subscriptions??"—",Crown]].map(([k,v,Icon])=>{const I=Icon as typeof Users;return <div className="stat-card" key={String(k)}><I size={23}/><span>{String(k)}</span><strong>{String(v)}</strong></div>})}</div>
  <div className="creator-layout"><div className="surface-card"><h2>Membership pricing</h2><p>Change new-signup pricing in USD and the number of titles creators can publish.</p>{plans.map(x=><div className="row-entry" key={x.id}><div><strong>{x.name}</strong><small>{x.audience} · {money(x.amount_cents)}/month · {x.upload_limit} uploads</small></div><button className="btn-outline" onClick={()=>edit(x)}>Edit</button></div>)}</div><div className="surface-card"><h2>{p?"Edit "+p.name:"Platform configuration"}</h2>{p?<form className="edit-form" onSubmit={save}><label>Monthly price (USD)<input type="number" min={0} step=".01" value={price} onChange={e=>setPrice(e.target.value)} required/></label><label>Creator upload limit<input type="number" min={0} step={1} value={limit} onChange={e=>setLimit(e.target.value)} required/></label>{error&&<p className="error">{error}</p>}{saved&&<p className="success">{saved}</p>}<button className="btn-gold">Save membership</button></form>:<div className="status-list"><span><ShieldCheck size={18}/> First-run administrator initialized</span><span><ServerCog size={18}/> PostgreSQL database</span><span><CreditCard size={18}/> Stripe configured through server secrets</span><span><UploadCloud size={18}/> Local private media filesystem</span><p className="muted">Complete the production deployment checklist in README.md.</p></div>}</div></div></>;
 }
 export default function App(){
@@ -119,6 +157,7 @@ export default function App(){
  <Route path="/login" element={<AuthPage mode="login" onAuth={refresh}/>}/>
  <Route path="/setup" element={<SetupPage required={setup} onAuth={refresh}/>}/>
  <Route path="/upload" element={<UploadPage user={user} refresh={refresh}/>}/>
+ <Route path="/library" element={<MediaLibrary user={user}/>}/>
  <Route path="/pricing" element={<PricingPage plans={plans} user={user}/>}/>
  <Route path="/cart" element={<CartPage user={user}/>}/>
  <Route path="/ads" element={<AdsPage user={user}/>}/>
