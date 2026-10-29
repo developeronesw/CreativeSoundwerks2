@@ -58,6 +58,8 @@ export async function authRoutes(app: FastifyInstance) {
  });
  app.post("/api/auth/register",{config:{rateLimit:{max:8,timeWindow:"1 minute"}}},async(req,reply)=>{
   const input=signup.parse(req.body);
+  const initialized=await query("SELECT 1 FROM users WHERE role='admin' LIMIT 1");
+  if(!initialized.rowCount)return reply.code(503).send({error:"Administrator setup must be completed first"});
   const id=randomUUID();
   try {
    await query("INSERT INTO users(id,email,password_hash,display_name,role,creator_type) VALUES($1,$2,$3,$4,$5,$6)",
