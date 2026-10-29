@@ -1,0 +1,18 @@
+{
+  "name": "creative-soundwerks-2",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev:api": "npm run dev -w @csw/api",
+    "dev:web": "npm run dev -w @csw/web",
+    "db:migrate": "npm run db:migrate -w @csw/api",
+    "build": "npm run build -w @csw/api && npm run build -w @csw/web",
+    "check": "npm run check -w @csw/api && npm run check -w @csw/web"
+  }
+}
