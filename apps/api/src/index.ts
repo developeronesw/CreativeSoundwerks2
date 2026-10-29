@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./env.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
