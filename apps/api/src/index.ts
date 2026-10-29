@@ -25,7 +25,7 @@ app.addHook("onRequest",async(req,reply)=>{
 app.setErrorHandler((e,req,reply)=>{
  if(e instanceof ZodError)return reply.code(400).send({error:"Invalid input",issues:e.issues.map(x=>({path:x.path.join("."),message:x.message}))});
  const status=(e as any).statusCode;
- if(status && status<500)return reply.code(status).send({error:e.message});
+ if(status && status<500)return reply.code(status).send({error:e instanceof Error ? e.message : "Request rejected"});
  req.log.error(e);
  return reply.code(500).send({error:"Internal server error"});
 });
