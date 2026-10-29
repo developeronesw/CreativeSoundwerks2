@@ -9,7 +9,7 @@ import { fileTypeFromFile } from "file-type";
 import { z } from "zod";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { Actor } from "./auth.js";
-import { requireActor, requireRole } from "./auth.js";
+import { requireRole } from "./auth.js";
 import { query } from "./db.js";
 
 const exec = promisify(execFile);
@@ -146,10 +146,10 @@ export async function assetRoutes(app:FastifyInstance){
   const u=await requireRole(req,["creator","admin"]);
   const id=z.uuid().parse((req.params as {id:string}).id);
   const asset=await getOwnedAsset(id,u);
-  const attached=await query("SELECT id FROM media WHERE asset_id=$1 LIMIT 1",[id]);
-  if(attached.rowCount)return reply.code(409).send({error:"Asset is in use by a release; detach it before deleting"});
-  await query("DELETE FROM media_assets WHERE id=$1 AND owner_id=$2",[id,asset.owner_id]);
-  await rm(privatePath(asset.storage_path),{force:true});
+  // A single conditional DELETE prevents a check-then-delete race with attaching files.
+  const removed=await query("DELETE FROM media_assets a WHERE a.id=$1 AND a.owner_id=$2 AND NOT EXISTS (SELECT 1 FROM media m WHERE m.asset_id=a.id) RETURNING a.storage_path",[id,asset.owner_id]);
+  if(!removed.rowCount)return reply.code(409).send({error:"Asset is in use by a release; detach it before deleting"});
+  await rm(privatePath(removed.rows[0].storage_path),{force:true});
   return {ok:true};
  });
 }
