@@ -3,8 +3,29 @@ on:
   push:
   pull_request:
 jobs:
-  typecheck-and-build:
+  typecheck-build-and-security:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: csw
+          POSTGRES_PASSWORD: cswtest
+          POSTGRES_DB: creative_soundwerks
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U csw -d creative_soundwerks"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://csw:cswtest@127.0.0.1:5432/creative_soundwerks
+      CSW_SETUP_TOKEN: github-actions-test-token-not-for-production
+      PUBLIC_APP_URL: http://localhost:5173
+      COOKIE_SECURE: 'false'
+      NODE_ENV: test
+      STRIPE_WEBHOOK_SECRET: whsec_for_test_only_not_real
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -13,3 +34,15 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run check
       - run: npm run build
+      - run: npm run db:migrate
+      - name: Boot local API
+        run: |
+          npm run dev:api >/tmp/csw-api.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/api/health; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/csw-api.log
+          exit 1
+      - name: Verify authorization and billing boundary
+        run: node --test tests/security.integration.test.mjs
