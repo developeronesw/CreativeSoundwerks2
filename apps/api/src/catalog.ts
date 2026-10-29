@@ -1,15 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rename, rm, stat } from "node:fs/promises";
-import { resolve, join } from "node:path";
-import { pipeline } from "node:stream/promises";
-import { fileTypeFromFile } from "file-type";
+import { uploadAsset, getOwnedAsset, deliverAsset } from "./assets.js";
 import { z } from "zod";
-import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { query } from "./db.js";
 import { actor, requireActor, requireRole } from "./auth.js";
 
-const root=resolve(process.env.MEDIA_ROOT || "./storage/private");
 const kinds=z.enum(["track","album","music_video","movie","short_film","tv_show","episode","trailer"]);
 const data=z.object({
  kind:kinds,title:z.string().trim().min(2).max(180),
@@ -17,19 +12,18 @@ const data=z.object({
  priceCents:z.number().int().min(0).max(10000000).default(0),
  parentId:z.uuid().optional(),seasonNumber:z.number().int().min(1).optional(),episodeNumber:z.number().int().min(1).optional()
 });
-const mimeAllowed:Record<string,string>={"audio/mpeg":"mp3","audio/flac":"flac","audio/ogg":"ogg","audio/wav":"wav","video/mp4":"mp4","video/webm":"webm","video/quicktime":"mov"};
-async function mediaPermission(req:FastifyRequest,id:string,download=false){
- const result=await query<any>("SELECT * FROM media WHERE id=$1",[id]); const item=result.rows[0];
- if(!item) throw Object.assign(new Error("Not found"),{statusCode:404});
+async function mediaPermission(req:FastifyRequest,id:string){
+ const result=await query<any>("SELECT m.*,a.storage_path AS asset_path,a.mime_type AS asset_mime FROM media m LEFT JOIN media_assets a ON a.id=m.asset_id AND a.owner_id=m.owner_id WHERE m.id=$1",[id]);
+ const item=result.rows[0];
+ if(!item)throw Object.assign(new Error("Not found"),{statusCode:404});
  const user=await actor(req);
- if(user?.role==="admin" || user?.id===item.owner_id) return item;
+ if(user?.role==="admin" || user?.id===item.owner_id)return item;
  if(item.visibility!=="published")throw Object.assign(new Error("Not found"),{statusCode:404});
  if(item.price_cents>0){
   if(!user)throw Object.assign(new Error("Purchase required"),{statusCode:403});
-  const purchased=await query("SELECT 1 FROM purchases WHERE user_id=$1 AND media_id=$2",[user.id,id]);
-  if(!purchased.rowCount)throw Object.assign(new Error("Purchase required"),{statusCode:403});
+  const p=await query("SELECT 1 FROM purchases WHERE user_id=$1 AND media_id=$2",[user.id,id]);
+  if(!p.rowCount)throw Object.assign(new Error("Purchase required"),{statusCode:403});
  }
- // Free published media can be streamed/downloaded; paid content requires verified purchase.
  return item;
 }
 export async function catalogRoutes(app:FastifyInstance){
@@ -40,7 +34,7 @@ export async function catalogRoutes(app:FastifyInstance){
  });
  app.get("/api/media/mine",async req=>{
   const u=await requireRole(req,["creator","admin"]);
-  return {items:(await query<any>("SELECT id,kind,title,visibility,price_cents,storage_path IS NOT NULL AS uploaded,created_at FROM media WHERE owner_id=$1 ORDER BY created_at DESC",[u.id])).rows};
+  return {items:(await query<any>("SELECT id,kind,title,visibility,price_cents,asset_id,asset_id IS NOT NULL AS uploaded,created_at FROM media WHERE owner_id=$1 ORDER BY created_at DESC",[u.id])).rows};
  });
  app.post("/api/media",async(req,reply)=>{
   const u=await requireRole(req,["creator","admin"]);const v=data.parse(req.body);
@@ -55,60 +49,55 @@ export async function catalogRoutes(app:FastifyInstance){
   await query("INSERT INTO media(id,owner_id,kind,title,description,genre,price_cents,parent_id,season_number,episode_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",[id,u.id,v.kind,v.title,v.description,v.genre,v.priceCents,v.parentId??null,v.seasonNumber??null,v.episodeNumber??null]);
   return reply.code(201).send({id});
  });
+
  app.patch("/api/media/:id",async(req,reply)=>{
   const u=await requireRole(req,["creator","admin"]);
-  const id=z.uuid().parse((req.params as any).id);
+  const id=z.uuid().parse((req.params as {id:string}).id);
   const v=z.object({title:z.string().min(2).max(180).optional(),description:z.string().max(5000).optional(),visibility:z.enum(["draft","published","unlisted"]).optional(),priceCents:z.number().int().min(0).optional()}).strict().parse(req.body);
   if(v.visibility==="published"){
-   const existing=await query<any>("SELECT storage_path,kind FROM media WHERE id=$1 AND owner_id=$2",[id,u.id]);
+   const existing=await query<any>("SELECT asset_id,kind FROM media WHERE id=$1 AND owner_id=$2",[id,u.id]);
    if(!existing.rows[0])return reply.code(404).send({error:"Not found"});
-   if(!existing.rows[0].storage_path && !["album","tv_show"].includes(existing.rows[0].kind))return reply.code(400).send({error:"Upload a media file before publishing"});
+   if(!existing.rows[0].asset_id && !["album","tv_show"].includes(existing.rows[0].kind))return reply.code(400).send({error:"Select an audio/video asset before publishing"});
   }
-  const result=await query("UPDATE media SET title=coalesce($3,title),description=coalesce($4,description),visibility=coalesce($5,visibility),price_cents=coalesce($6,price_cents) WHERE id=$1 AND owner_id=$2 RETURNING id",[id,u.id,v.title??null,v.description??null,v.visibility??null,v.priceCents??null]);
-  if(!result.rowCount)return reply.code(404).send({error:"Not found"});
+  const r=await query("UPDATE media SET title=coalesce($3,title),description=coalesce($4,description),visibility=coalesce($5,visibility),price_cents=coalesce($6,price_cents) WHERE id=$1 AND owner_id=$2 RETURNING id",[id,u.id,v.title??null,v.description??null,v.visibility??null,v.priceCents??null]);
+  if(!r.rowCount)return reply.code(404).send({error:"Not found"});
   return {ok:true};
  });
- app.post("/api/media/:id/upload",async(req,reply)=>{
-  const u=await requireRole(req,["creator","admin"]);const id=z.uuid().parse((req.params as any).id);
-  const existing=await query<any>("SELECT id,storage_path FROM media WHERE id=$1 AND owner_id=$2 AND visibility='draft'",[id,u.id]);
-  if(!existing.rowCount)return reply.code(404).send({error:"Draft media not found"});
-  if(existing.rows[0].storage_path)return reply.code(409).send({error:"Media file already uploaded"});
-  const file=await req.file({limits:{fileSize:1024*1024*1024,files:1}});
-  if(!file)return reply.code(400).send({error:"File required"});
-  await mkdir(root,{recursive:true,mode:0o700});
-  const temp=join(root,"tmp-"+randomUUID());let finalPath="";
-  try {
-   await pipeline(file.file,createWriteStream(temp,{flags:"wx",mode:0o600}));
-   if(file.file.truncated) return reply.code(413).send({error:"Upload too large"});
-   const detected=await fileTypeFromFile(temp);
-   const ext=detected?.mime ? mimeAllowed[detected.mime] : undefined;
-   if(!ext)return reply.code(415).send({error:"Unsupported file type"});
-   const s=await stat(temp);
-   finalPath=join(root,id+"-"+randomUUID()+"."+ext);
-   await rename(temp,finalPath);
-   const updated=await query("UPDATE media SET storage_path=$3,mime_type=$4,size_bytes=$5 WHERE id=$1 AND owner_id=$2 AND storage_path IS NULL RETURNING id",[id,u.id,finalPath,detected!.mime,s.size]);
-   if(!updated.rowCount){await rm(finalPath,{force:true});return reply.code(409).send({error:"Concurrent upload conflict"});}
-   return {ok:true,size:s.size,mime:detected!.mime};
-  }finally{await rm(temp,{force:true}).catch(()=>{});}
+ // Upload only once into the unified Media Library, then link the saved asset to the release.
+ app.put("/api/media/:id/asset",async(req,reply)=>{
+  const u=await requireRole(req,["creator","admin"]);
+  const id=z.uuid().parse((req.params as {id:string}).id);
+  const {assetId}=z.object({assetId:z.uuid()}).parse(req.body);
+  const own=await query<any>("SELECT kind,visibility FROM media WHERE id=$1 AND owner_id=$2",[id,u.id]);
+  if(!own.rows[0])return reply.code(404).send({error:"Release not found"});
+  if(own.rows[0].visibility!=="draft")return reply.code(409).send({error:"Only drafts can change their media file"});
+  if(["album","tv_show"].includes(own.rows[0].kind))return reply.code(400).send({error:"This is a collection, not a playable media file"});
+  const expected=own.rows[0].kind==="track"?"audio":"video";
+  const a=await query("SELECT id FROM media_assets WHERE id=$1 AND owner_id=$2 AND media_type=$3",[assetId,u.id,expected]);
+  if(!a.rowCount)return reply.code(404).send({error:"You cannot attach this file or its format is incompatible"});
+  await query("UPDATE media SET asset_id=$3 WHERE id=$1 AND owner_id=$2 AND visibility='draft'",[id,u.id,assetId]);
+  return {ok:true,assetId};
  });
- async function sendMedia(req:FastifyRequest,reply:FastifyReply,download:boolean){
-  const id=z.uuid().parse((req.params as any).id);const m=await mediaPermission(req,id,download);
-  if(!m.storage_path)return reply.code(404).send({error:"Media file not available"});
-  const filename=resolve(m.storage_path);
-  if(!filename.startsWith(root + "/"))return reply.code(500).send({error:"Invalid storage location"});
-  let fileStat;try{fileStat=await stat(filename);}catch{return reply.code(404).send({error:"File missing"});}
-  const total=fileStat.size; const range=req.headers.range;
-  reply.header("Accept-Ranges","bytes").header("Cache-Control","private, no-store").header("X-Content-Type-Options","nosniff").type(m.mime_type||"application/octet-stream");
-  if(download)reply.header("Content-Disposition","attachment; filename=\"download."+((m.mime_type||"").split("/")[1]||"bin").replace(/[^a-z0-9]/gi,"")+"\"");
-  if(range){
-   const match=/^bytes=(\d+)-(\d*)$/.exec(range);
-   if(!match)return reply.code(416).header("Content-Range","bytes */"+total).send();
-   const start=Number(match[1]);const end=match[2]?Math.min(Number(match[2]),total-1):total-1;
-   if(start>=total||start>end)return reply.code(416).header("Content-Range","bytes */"+total).send();
-   reply.code(206).header("Content-Range","bytes "+start+"-"+end+"/"+total).header("Content-Length",end-start+1);
-   return reply.send(createReadStream(filename,{start,end}));
-  }
-  return reply.header("Content-Length",total).send(createReadStream(filename));
+ // Backward-compatible release upload now uses the same centralized validation/storage system.
+ app.post("/api/media/:id/upload",async(req,reply)=>{
+  const u=await requireRole(req,["creator","admin"]);
+  const id=z.uuid().parse((req.params as {id:string}).id);
+  const draft=await query<any>("SELECT kind FROM media WHERE id=$1 AND owner_id=$2 AND visibility='draft' AND asset_id IS NULL",[id,u.id]);
+  if(!draft.rows[0])return reply.code(404).send({error:"Unattached draft not found"});
+  if(["album","tv_show"].includes(draft.rows[0].kind))return reply.code(400).send({error:"Upload individual songs or episodes instead"});
+  const expected=draft.rows[0].kind==="track"?"audio":"video";
+  const asset=await uploadAsset(req,u,expected);
+  const changed=await query("UPDATE media SET asset_id=$3 WHERE id=$1 AND owner_id=$2 AND asset_id IS NULL AND visibility='draft' RETURNING id",[id,u.id,asset.id]);
+  if(!changed.rowCount)return reply.code(409).send({error:"Release was changed; file is available in your Media Library"});
+  return reply.code(201).send({ok:true,assetId:asset.id});
+ });
+ async function sendMedia(req:FastifyRequest,reply:any,download:boolean){
+  const id=z.uuid().parse((req.params as {id:string}).id);
+  const m=await mediaPermission(req,id);
+  if(!m.asset_id) return reply.code(404).send({error:"No playable file attached"});
+  const r=await query<any>("SELECT * FROM media_assets WHERE id=$1 AND owner_id=$2",[m.asset_id,m.owner_id]);
+  if(!r.rowCount)return reply.code(404).send({error:"Media file missing"});
+  return deliverAsset(req,reply,r.rows[0],download);
  }
  app.get("/api/media/:id/stream",async(req,reply)=>sendMedia(req,reply,false));
  app.get("/api/media/:id/download",async(req,reply)=>sendMedia(req,reply,true));
