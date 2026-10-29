@@ -16,7 +16,7 @@ test("admin bootstrap and creator isolation",async()=>{
  assert.equal(setup.status,200,JSON.stringify(setup.body));
  assert.equal((await call("/setup/initialize","POST",{displayName:"Owner2",email:"second@example.test",password:"AdminPasswordLong!23",setupToken:process.env.CSW_SETUP_TOKEN})).status,409);
  const register=name=>call("/auth/register","POST",{displayName:name,email:name+"-"+suffix+"@example.test",password:"CreatorPasswordLong!23",role:"creator",creatorType:"musician"});
- const a=await register("a"),b=await register("b");
+ const a=await register("AlphaCreator"),b=await register("BetaCreator");
  assert.equal(a.status,200,JSON.stringify(a.body));assert.equal(b.status,200,JSON.stringify(b.body));
  await db.query("INSERT INTO subscriptions(id,user_id,plan_id,status) VALUES($1,$2,$3,'active'),($4,$5,$3,'active')",[randomUUID(),a.body.user.id,"00000000-0000-4000-8000-000000000101",randomUUID(),b.body.user.id]);
  const title=await call("/media","POST",{kind:"track",title:"Private track",priceCents:500},a.cookie);
