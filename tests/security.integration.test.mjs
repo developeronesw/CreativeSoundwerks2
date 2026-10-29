@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import pg from "pg";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 const db=new pg.Pool({connectionString:process.env.DATABASE_URL});
 const suffix=randomUUID().slice(0,8);
 async function call(path,method="GET",data,session="",origin){
@@ -40,5 +44,58 @@ test("admin bootstrap and creator isolation",async()=>{
  assert.equal((await call("/ads/"+ad.body.id,"PATCH",{title:"Changed"},b.cookie)).status,404);
  assert.equal((await call("/auth/logout","POST",{},a.cookie)).status,200);
  assert.equal((await call("/media/mine","GET",undefined,a.cookie)).status,401);
+
+ // Audio/video content is stored once in an owner-scoped library, never in public web roots.
+ const sendAsset=async (cookie,name,bytes,mime="application/octet-stream")=>{
+  const form=new FormData();
+  form.set("file",new Blob([bytes],{type:mime}),name);
+  const response=await fetch("http://127.0.0.1:8787/api/library/upload",{method:"POST",headers:{cookie},body:form});
+  return {status:response.status,body:await response.json().catch(()=>({}))};
+ };
+ const source=Buffer.from("<?php echo json_encode(['password'=>'secret']); ?>");
+ for(const name of ["attack.php","config.json","readme.txt","fake.mp3","fake.mp4","image.png"]){
+  const result=await sendAsset(a.cookie,name,source,"application/octet-stream");
+  assert.equal(result.status,415,JSON.stringify({name,result}));
+ }
+ const temp=mkdtempSync(join(tmpdir(),"soundwerks-ci-"));
+ try{
+  const mp3=join(temp,"valid.mp3"),mp4=join(temp,"valid.mp4");
+  execFileSync("ffmpeg",["-hide_banner","-loglevel","error","-f","lavfi","-i","sine=frequency=440:duration=0.4","-codec:a","libmp3lame","-qscale:a","4","-y",mp3]);
+  execFileSync("ffmpeg",["-hide_banner","-loglevel","error","-f","lavfi","-i","color=c=blue:s=160x90:r=15:d=0.4","-codec:v","mpeg4","-y",mp4]);
+  assert.equal((await sendAsset(a.cookie,"audio.php",readFileSync(mp3),"audio/mpeg")).status,415,"A valid MP3 disguised as PHP must be rejected");
+  const audio=await sendAsset(a.cookie,"valid.mp3",readFileSync(mp3),"audio/mpeg");
+  assert.equal(audio.status,201,JSON.stringify(audio.body));
+  const video=await sendAsset(b.cookie,"movie.mp4",readFileSync(mp4),"video/mp4");
+  assert.equal(video.status,201,JSON.stringify(video.body));
+  const audioId=audio.body.item.id,videoId=video.body.item.id;
+  const myLibrary=await call("/library","GET",undefined,a.cookie);
+  assert.equal(myLibrary.status,200);
+  assert.ok(myLibrary.body.items.some(x=>x.id===audioId));
+  assert.ok(!myLibrary.body.items.some(x=>x.id===videoId));
+  assert.ok(myLibrary.body.items.every(x=>!x.storage_path),"Never reveal absolute VPS file paths");
+  assert.equal((await call("/library/"+videoId,"GET",undefined,a.cookie)).status,404);
+  assert.equal((await call("/library/"+videoId+"/download","GET",undefined,a.cookie)).status,404);
+  assert.equal((await call("/library/"+videoId+"/stream","GET",undefined,a.cookie)).status,404);
+  assert.equal((await call("/library/"+videoId,"DELETE",undefined,a.cookie)).status,404);
+  assert.equal((await call("/admin/library","GET",undefined,b.cookie)).status,403);
+  const adminView=await call("/admin/library","GET",undefined,setup.cookie);
+  assert.equal(adminView.status,200);
+  assert.ok(adminView.body.items.some(x=>x.id===audioId&&x.owner_id===a.body.user.id));
+  assert.ok(adminView.body.items.some(x=>x.id===videoId&&x.owner_id===b.body.user.id));
+  assert.ok(adminView.body.items.some(x=>x.id===audioId&&x.uploader_email));
+  assert.ok(adminView.body.items.every(x=>!x.storage_path));
+  assert.equal((await call("/media/"+title.body.id+"/asset","PUT",{assetId:videoId},a.cookie)).status,404);
+  assert.equal((await call("/media/"+title.body.id+"/asset","PUT",{assetId:audioId},b.cookie)).status,404);
+  assert.equal((await call("/media/"+title.body.id+"/asset","PUT",{assetId:audioId},a.cookie)).status,200);
+  assert.equal((await call("/library/"+audioId,"DELETE",undefined,a.cookie)).status,409,"Linked assets must not be deleted");
+  assert.equal((await call("/media/"+title.body.id+"/stream","GET",undefined,b.cookie)).status,404,"Draft remains private");
+  const range=await fetch("http://127.0.0.1:8787/api/media/"+title.body.id+"/stream",{headers:{cookie:a.cookie,range:"bytes=0-31"}});
+  assert.equal(range.status,206);
+  assert.equal(range.headers.get("content-type"),"audio/mpeg");
+  assert.equal((await range.arrayBuffer()).byteLength,32);
+  assert.equal((await call("/library/"+videoId,"GET",undefined,setup.cookie)).status,200,"Administrator can inspect all");
+  assert.equal((await call("/library/"+videoId,"DELETE",undefined,b.cookie)).status,200,"Unattached owner asset can be removed");
+ }finally{rmSync(temp,{recursive:true,force:true});}
+
  await db.end();
 });
