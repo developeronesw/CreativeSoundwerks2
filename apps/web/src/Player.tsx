@@ -27,13 +27,12 @@ export function PlayerProvider({children}:{children:ReactNode}){
  async function externalPiP(){const el=media.current as HTMLVideoElement|null;if(el?.requestPictureInPicture)await el.requestPictureInPicture().catch(()=>{});}
  return <Ctx.Provider value={{play,current}}>
   {children}
-  {current&&video&&!minimized&&<div className="floating-video" style={{transform:"translate("+offset.x+"px,"+offset.y+"px)"}} onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={()=>drag.current=null}>
+  {current&&video&&<div className={"floating-video "+(minimized?"floating-video-minimized":"")} style={{transform:"translate("+offset.x+"px,"+offset.y+"px)"}} onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={()=>drag.current=null}>
    <div className="floating-video-heading"><span>NOW PLAYING · {current.title}</span><div><button title="Browser picture-in-picture" onClick={externalPiP}><ExternalLink size={16}/></button><button title="Minimize video" onClick={()=>setMinimized(true)}><Minimize2 size={16}/></button><button title="Close video" onClick={()=>{setCurrent(null);setPlaying(false);}}><X size={16}/></button></div></div>
    <div className="video-frame"><video ref={media as React.RefObject<HTMLVideoElement>} src={source} onTimeUpdate={onTick} onLoadedMetadata={e=>setDuration(e.currentTarget.duration)} onEnded={()=>setPlaying(false)} controls playsInline/></div>
    <div className="floating-caption"><span>{current.creator||"Creative Soundwerks"}</span><span>Drag to reposition</span></div>
   </div>}
   {current&&!video&&<audio ref={media as React.RefObject<HTMLAudioElement>} src={source} onTimeUpdate={onTick} onLoadedMetadata={e=>setDuration(e.currentTarget.duration)} onEnded={()=>setPlaying(false)}/>}
-  {current&&video&&minimized&&<video className="hidden-media" ref={media as React.RefObject<HTMLVideoElement>} src={source} onTimeUpdate={onTick} onLoadedMetadata={e=>setDuration(e.currentTarget.duration)} onEnded={()=>setPlaying(false)}/>}
   <div className="player-bar">
    <div className="player-track"><div className="cover-sm"><Music2 size={20}/></div><div><strong>{current?.title||"Your soundtrack starts here"}</strong><small>{current?.creator||"Select a song, film or episode"}</small></div></div>
    <div className="player-main"><div className="transport"><button aria-label="Previous" onClick={()=>seek(0)}><SkipBack size={19}/></button><button className="play-toggle" aria-label={playing?"Pause":"Play"} onClick={toggle}>{playing?<Pause fill="currentColor" size={21}/>:<Play fill="currentColor" size={21}/>}</button><button aria-label="Forward 10 seconds" onClick={()=>seek(Math.min(duration,position+10))}><SkipForward size={19}/></button></div>

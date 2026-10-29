@@ -1,0 +1,24 @@
+[Unit]
+Description=Creative Soundwerks 2 API
+After=network-online.target postgresql.service
+Wants=network-online.target
+[Service]
+Type=simple
+User=csw
+Group=csw
+WorkingDirectory=/opt/creative-soundwerks/apps/api
+ExecStart=/usr/bin/node /opt/creative-soundwerks/apps/api/dist/index.js
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=COOKIE_SECURE=true
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/creative-soundwerks/media
+CapabilityBoundingSet=
+UMask=0077
+[Install]
+WantedBy=multi-user.target

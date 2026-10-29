@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Link, Routes, Route, useLocation, useNavigate, Navigate } from "react-router-dom";
-import { Home, Music2, Film, Tv, Users, UploadCloud, Megaphone, Crown, Search, ShoppingCart, ShieldCheck, LogIn, LogOut, Menu, X, ArrowRight, Play, Check, CreditCard, ServerCog, Radio, BarChart3, FolderOpen, Headphones, Settings, HeartHandshake, LockKeyhole } from "lucide-react";
+import { Home, Music2, Film, Tv, Users, UploadCloud, Megaphone, Crown, Search, ShoppingCart, ShieldCheck, LogOut, Menu, X, ArrowRight, Play, Check, CreditCard, ServerCog, Radio, BarChart3, FolderOpen, Headphones, Settings, LockKeyhole } from "lucide-react";
 import { api, money, upload, type User, type Plan, type Media, type CartItem } from "./api";
 import { PlayerProvider } from "./Player";
 import { FeatureTiles, MediaCard, Plans, Section } from "./components";
