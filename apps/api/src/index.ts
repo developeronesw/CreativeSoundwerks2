@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
-import rawBody from "@fastify/raw-body";
+import rawBody from "fastify-raw-body";
 import { ZodError } from "zod";
 import { query } from "./db.js";
 import { authRoutes, requireRole } from "./auth.js";
