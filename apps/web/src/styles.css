@@ -40,3 +40,7 @@
 .profile-card h3{display:flex;align-items:center;gap:9px}
 .setup-preflight{padding:13px;border:1px solid #eadcc4;background:#fffaf1;border-radius:9px;display:flex;flex-direction:column;gap:8px;font-size:12px}
 .setup-preflight .error{line-height:1.7}
+
+.setup-field-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px}
+.setup-security-note{font-size:12px;opacity:.8;margin-top:18px}
+@media(max-width:630px){.setup-field-grid{grid-template-columns:1fr}}
