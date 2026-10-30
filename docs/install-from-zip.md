@@ -1,52 +1,56 @@
-# Creative Soundwerks 2 — ZIP installation on a VPS
+# Install Creative Soundwerks 2 directly from GitHub ZIP
 
-**Fresh installation only.** This is a Node.js/PostgreSQL streaming application, not a PHP plugin. Uploading and extracting the release ZIP does not launch the backend on its own. One terminal command with sudo is required to provision services; the admin account is then created in a WordPress-style browser wizard.
+This application can be installed on a **standard Ubuntu 24.04 or Debian 12 VPS without DevOne Server Software**. A third-party hosting panel is optional. This is not a PHP application: a Node.js runtime, PostgreSQL database and running service must be provisioned.
 
-## 1. Prepare
+## 1. Prepare the VPS
 
-- A fresh Ubuntu 24.04 / Debian 12 VPS with sudo access and sufficient space for your media catalog.
-- DNS A/AAAA record for your streaming domain pointing to the VPS.
-- Ports 80 and 443 open; port 5432 (PostgreSQL) must stay private.
-- Download the successful main-branch GitHub Actions artifact named creative-soundwerks2-install. GitHub places the actual file creative-soundwerks2-install.zip inside an artifact-download ZIP. Extract the *inner* installer ZIP onto your VPS via SFTP, your VPS file manager or SSH.
+- Fresh VPS (avoid an existing production VPS unless you have reviewed its web/database configuration) with root/sudo/SSH access.
+- Public DNS record pointing `media.example.com` to that VPS.
+- Inbound ports **80 and 443** permitted. Keep database port **5432** and internal API port **8787** private.
+- On GitHub, open the [CreativeSoundwerks2 repository](https://github.com/developeronesw/CreativeSoundwerks2), choose **Code → Download ZIP**, and transfer `CreativeSoundwerks2-main.zip` to the VPS through your hosting file manager or SCP/SFTP.
 
-## 2. Extract and launch the installer
+## 2. Extract the GitHub ZIP
 
-Run from the directory where you extracted the inner ZIP:
+```bash
+unzip CreativeSoundwerks2-main.zip
+cd CreativeSoundwerks2-main
+bash install.sh --check
+sudo bash install.sh --domain media.example.com --email you@example.com
+```
 
-    mkdir -p ~/csw-install && cd ~/csw-install
-    unzip /path/to/creative-soundwerks2-install.zip
-    bash install.sh --check
-    sudo bash install.sh --domain media.example.com --email you@example.com
+The preflight check looks for the original source files and requires no root privileges. GitHub's ZIP does **not** include `node_modules/`, `dist/` or the secret `.env`. That is expected: the installer runs `npm install`, `npm run check` and `npm run build` itself. There is no custom ZIP to download or produce.
 
-The ZIP has install.sh at its root (not buried in a nested folder). The --check option does not need root or make system changes; it validates that the release contains the built frontend, API, database migration files, a lockfile and installer scripts.
+## 3. What the installer does automatically
 
-## 3. Automatic VPS provisioning
+1. Installs Node.js 22.12+ (using a signed APT repository where needed), PostgreSQL, Nginx, FFmpeg, FFprobe, Certbot and supporting utilities.
+2. Copies this GitHub source to `/opt/creative-soundwerks`.
+3. Installs npm dependencies and builds the React/Vite UI and TypeScript Node API using a restricted `csw` user rather than root.
+4. Makes the deployed code root-owned and creates private per-install database credentials.
+5. Creates a local PostgreSQL database and private media storage under `/var/lib/creative-soundwerks/media`.
+6. Applies the schema migrations, configures an HTTPS site using Let's Encrypt, enables automatic certificate renewal and starts a systemd service.
+7. Checks the local API health before announcing success.
 
-The root installer:
-1. Installs PostgreSQL, Nginx, FFmpeg, FFprobe, Certbot and supporting utilities.
-2. Installs Node.js 22 from a signed NodeSource APT repository if /usr/bin/node is below 22.12; no curl-to-shell execution.
-3. Creates a restricted csw system user, dedicated local PostgreSQL database and secure per-server credentials.
-4. Copies the bundled built React frontend and Node.js backend to /opt/creative-soundwerks. Media storage is outside Nginx in /var/lib/creative-soundwerks/media.
-5. Installs the npm dependency lockfile with npm ci, applies the database migrations, and obtains a free Let's Encrypt certificate using HTTP validation.
-6. Configures Nginx for HTTPS, enables the systemd application service, and checks API health.
+The installer is **fresh-install only**. It refuses an existing `/opt/creative-soundwerks` application directory or existing database role and does not attempt to overwrite an existing installation. If the installation partially fails, inspect logs and the generated resources before attempting recovery—do not re-run it over live data.
 
-Existing installed sites, roles and app directories are not overwritten. If DNS or certificate issuance fails, the temporary HTTP server returns 503 instead of exposing the setup screen over plaintext. A partial failed install requires administrator diagnosis/recovery; it is *not* a safe upgrade or reset tool.
+## 4. Finish configuration in the browser
 
-## 4. Complete setup in the browser
+Visit `https://media.example.com/setup`. Retrieve the private setup token in the VPS terminal:
 
-Open https://media.example.com/setup to create the first administrator. Retrieve the one-time setup token from the VPS terminal (do not send it to anyone):
+```bash
+sudo grep '^CSW_SETUP_TOKEN=' /opt/creative-soundwerks/.env
+```
 
-    sudo grep '^CSW_SETUP_TOKEN=' /opt/creative-soundwerks/.env
+Create the initial administrator, configure creator/listener membership tiers and upload limits, then set Stripe server keys in the protected server `.env` before enabling payments.
 
-The wizard checks FFmpeg/FFprobe readiness and securely creates the first administrator. Set membership prices/upload limits in the admin dashboard, and separately configure Stripe server secrets before accepting payments.
+## Troubleshooting
 
-## Operations and limitations
+```bash
+sudo systemctl status creative-soundwerks
+sudo journalctl -u creative-soundwerks -n 100
+sudo nginx -t
+curl -fsS http://127.0.0.1:8787/api/health
+```
 
-- API service: sudo systemctl status creative-soundwerks
-- Logs: sudo journalctl -u creative-soundwerks -n 100
-- API check: curl -fsS http://127.0.0.1:8787/api/health
-- Web server check: sudo nginx -t
-- Verify TLS renewal: sudo systemctl status certbot.timer
-- Keep encrypted, synchronized backups of PostgreSQL and /var/lib/creative-soundwerks/media; run disaster recovery tests before production.
-- HLS, large-scale encoding/transcoding, payments/payout audit and full production hardening remain separate development milestones.
-- A ZIP installer for *fresh installations* does not replace the need for a future backups-aware upgrade and migration workflow.
+An installation cannot obtain a free TLS certificate until DNS points to this VPS and port 80 is accessible. Never expose the initial admin form over HTTP just to bypass a certificate failure.
+
+**Production status:** A successfully installed build does not imply the platform has completed every security, streaming, payment, backup or disaster-recovery milestone. Full HLS transcoding, DRM and advanced advertising remain future work.
