@@ -10,7 +10,7 @@ export function MediaCard({item,index=0,cartChanged}:{item:Media;index?:number;c
  const paid=item.price_cents>0;
  async function add(){try{await api("/cart",{method:"POST",body:JSON.stringify({mediaId:item.id})});setMsg("Added");cartChanged?.();}catch(e){setMsg((e as Error).message);}}
  return <article className="media-card"><div className="media-art" style={{background:gradients[index%gradients.length]}}>
-  {videoKind(item.kind)?<Film size={46} strokeWidth={1.2}/>:<Music2 size={46} strokeWidth={1.2}/>}
+  {item.cover_asset_id?<img className="cover-image" src={"/api/media/"+item.id+"/cover"} alt={item.title+" cover art"} loading="lazy"/>:videoKind(item.kind)?<Film size={46} strokeWidth={1.2}/>:<Music2 size={46} strokeWidth={1.2}/>}
   <span className="media-type">{item.kind.replaceAll("_"," ")}</span>
   <button className="media-play" onClick={()=>play(item)} aria-label={"Play "+item.title}><Play size={18} fill="currentColor"/></button>
  </div><div className="media-label"><strong>{item.title}</strong><span>{item.creator||item.genre||"Creative Soundwerks"}</span></div>
