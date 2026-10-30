@@ -14,7 +14,7 @@ import { imageRoutes } from "./images.js";
 import { prerequisiteRoutes } from "./prerequisites.js";
 import { managedSetupRoutes } from "./managed-setup.js";
 import {selfUpdateRoutes,updateHeartbeat,updateHome} from "./self-updates.js";
-import {readFile} from "node:fs/promises";
+import {access} from "node:fs/promises";
 import {join} from "node:path";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
@@ -25,11 +25,21 @@ await app.register(cookie);
 await app.register(rateLimit,{max:200,timeWindow:"1 minute"});
 await app.register(multipart,{limits:{files:1,fileSize:1024*1024*1024}});
 await app.register(rawBody,{field:"rawBody",global:false,encoding:false,runFirst:true});
+let maintenanceUntil=0;
+let maintenanceMode=false;
+async function isMaintenanceMode(){
+ const now=Date.now();
+ if(now>=maintenanceUntil){
+  try{await access(join(updateHome(),"maintenance.flag"));maintenanceMode=true;}
+  catch{maintenanceMode=false;}
+  maintenanceUntil=now+500;
+ }
+ return maintenanceMode;
+}
 app.addHook("onRequest",async(req,reply)=>{
  if(req.url.startsWith("/api/")&&req.url!=="/api/health"&&
   !req.url.startsWith("/api/admin/updates")){
-  const maintenance=await readFile(join(updateHome(),"maintenance.flag"),"utf8").catch(()=>null);
-  if(maintenance)return reply.code(503).send({error:"Platform update in progress. Please retry shortly."});
+  if(await isMaintenanceMode())return reply.code(503).send({error:"Platform update in progress. Please retry shortly."});
  }
  if(!["POST","PUT","PATCH","DELETE"].includes(req.method))return;
  const origin=req.headers.origin;
