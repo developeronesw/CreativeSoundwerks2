@@ -9,7 +9,7 @@ case "$ID" in ubuntu|debian) ;; *) echo "Ubuntu/Debian required" >&2; exit 1;; e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
- ca-certificates curl gnupg openssl rsync zip unzip \
+ ca-certificates curl git gnupg openssl rsync zip unzip \
  postgresql nginx ffmpeg certbot
 
 node_ready(){
