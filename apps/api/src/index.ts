@@ -13,6 +13,9 @@ import { assetRoutes } from "./assets.js";
 import { imageRoutes } from "./images.js";
 import { prerequisiteRoutes } from "./prerequisites.js";
 import { managedSetupRoutes } from "./managed-setup.js";
+import {selfUpdateRoutes,updateHeartbeat,updateHome} from "./self-updates.js";
+import {readFile} from "node:fs/promises";
+import {join} from "node:path";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -23,6 +26,11 @@ await app.register(rateLimit,{max:200,timeWindow:"1 minute"});
 await app.register(multipart,{limits:{files:1,fileSize:1024*1024*1024}});
 await app.register(rawBody,{field:"rawBody",global:false,encoding:false,runFirst:true});
 app.addHook("onRequest",async(req,reply)=>{
+ if(req.url.startsWith("/api/")&&req.url!=="/api/health"&&
+  !req.url.startsWith("/api/admin/updates")){
+  const maintenance=await readFile(join(updateHome(),"maintenance.flag"),"utf8").catch(()=>null);
+  if(maintenance)return reply.code(503).send({error:"Platform update in progress. Please retry shortly."});
+ }
  if(!["POST","PUT","PATCH","DELETE"].includes(req.method))return;
  const origin=req.headers.origin;
  const expected=process.env.PUBLIC_APP_URL;
@@ -36,7 +44,7 @@ app.setErrorHandler((e,req,reply)=>{
  req.log.error(e);
  return reply.code(500).send({error:"Internal server error"});
 });
-app.get("/api/health",async()=>{await query("SELECT 1");return {ok:true,service:"creative-soundwerks-api"};});
+app.get("/api/health",async()=>{await query("SELECT 1");return {ok:true,service:"creative-soundwerks-api",revision:process.env.CSW_ACTIVE_SHA??null};});
 await authRoutes(app);
 await billingRoutes(app);
 await catalogRoutes(app);
@@ -44,6 +52,7 @@ await assetRoutes(app);
 await imageRoutes(app);
 await prerequisiteRoutes(app);
 await managedSetupRoutes(app);
+await selfUpdateRoutes(app);
 app.get("/api/admin/stats",async req=>{
  await requireRole(req,["admin"]);
  const r=await query<any>("SELECT (SELECT count(*) FROM users)::int AS users,(SELECT count(*) FROM media)::int AS media,(SELECT count(*) FROM orders WHERE status='paid')::int AS orders,(SELECT count(*) FROM subscriptions WHERE status='active')::int AS subscriptions");
@@ -87,3 +96,4 @@ if(existsSync(webRoot)){
 const port=Number(process.env.PORT||8787);
 const host=process.env.HOST||"127.0.0.1";
 await app.listen({host,port});
+await updateHeartbeat().catch(error=>app.log.warn({error},"Updater heartbeat unavailable"));
