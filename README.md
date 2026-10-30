@@ -4,6 +4,12 @@
 
 The new Creative Soundwerks is a streaming and creator-commerce foundation for music, movies, TV, episodes, short films, music videos, and advertisements. Visual contract: ivory / champagne gold / midnight charcoal, with a persistent audio player and floating mini-video player.
 
+## Official self-updates — no DevOne dependency
+
+Creative Soundwerks has its own **Administrator → Software updates** panel. It checks the official `main` branch and requires the exact GitHub CI run to pass, then requests a new build from a separate private updater service. The worker stages code, snapshots PostgreSQL, migrates the database, activates the new revision, and attempts automatic rollback if health verification fails. Private media and server credentials are retained. **Updates must be explicitly approved by the Creative Soundwerks administrator.**
+
+Fresh standalone VPS installations provision their own updater service and timer automatically. Existing Node.js installations, including the `cs2.devonecms.com` testing site, need a **one-time updater service and Node launcher bootstrap**; after that, updates are managed inside Creative Soundwerks itself—not DevOne. See the [independent update and rollback guide](docs/independent-updates.md). This is a developer preview until the real-host recovery procedure has been rehearsed.
+
 ## WordPress-style installation — two supported modes
 
 **DevOne Server, CloudPanel and any compatible Node.js hosting panel:** Download **Code → Download ZIP**, upload and extract it into a private Node application folder, then use your panel's deployment/build command:
