@@ -35,6 +35,30 @@ sudo systemctl status creative-soundwerks-updater.service
 sudo journalctl -u creative-soundwerks-updater.service -n 60 --no-pager
 ```
 
+## One-time upgrade for an existing DevOne testing site
+
+For `cs2.devonecms.com`, initially installed through DevOne Software Center, use the guarded bootstrap instead of running `install.sh`. **Take a VPS snapshot first.** Identify the site's actual `site_...` identifier from **DevOne → Websites & Files**. SSH into the VPS:
+
+```bash
+curl -fL https://raw.githubusercontent.com/developeronesw/CreativeSoundwerks2/main/scripts/bootstrap-devone-site.sh -o /tmp/csw-bootstrap-devone.sh
+less /tmp/csw-bootstrap-devone.sh
+sudo bash /tmp/csw-bootstrap-devone.sh --site-id site_YOUR_ACTUAL_ID --check
+```
+
+Check mode verifies: service account, dedicated DevOne Node service and entrypoint, private PostgreSQL, prerequisites and the official GitHub main commit's successful CI. It makes **no server changes**.
+
+If preflight succeeds and an off-server VPS snapshot is available, upgrade:
+
+```bash
+sudo bash /tmp/csw-bootstrap-devone.sh --site-id site_YOUR_ACTUAL_ID --apply
+```
+
+The bootstrap builds new files as the site's unprivileged account while the original app is online, stops the site for a database snapshot/migration, switches source files, verifies API health and attempts automatic restore on failure. It retains the previous source directory and PostgreSQL dump for recovery. It then registers the **independent Creative Soundwerks updater timer**, without replacing the DevOne website's systemd definition.
+
+After success, sign in at `https://cs2.devonecms.com/admin`, open **Software updates** and check the updater is online. In future, updates are approved there. **Do not subsequently mix DevOne's managed Creative Soundwerks updater with the native Creative Soundwerks updater** on the same installation; they use different release-state tracking.
+
+These instructions apply only to a DevOne-created website with the expected isolated Node and PostgreSQL layout; the preflight refuses incompatible sites. Never use `--apply` after a partial/failed run without inspecting the retained backups and service state.
+
 ## Existing Node.js hosting (including a DevOne testing site)
 
 There is a **one-time bootstrap requirement** for existing deployments: the updated Creative Soundwerks source (including the update files) must already be deployed, and the Node entrypoint must launch `scripts/update-boot.mjs`. A version that predates the updater cannot update itself.
