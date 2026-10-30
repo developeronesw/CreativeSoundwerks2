@@ -33,7 +33,10 @@ async function github(path:string){
  if(!response.ok)throw Error(response.status===403||response.status===429?"github_rate_limited":"github_unavailable");
  return response.json() as Promise<any>;
 }
-export async function officialRelease(){
+type Release={latestSha:string;approved:boolean;ciStatus:string;ciUrl:string|null};
+let releaseCache:{at:number;value:Release}|null=null;
+export async function officialRelease(force=false):Promise<Release>{
+ if(!force&&releaseCache&&Date.now()-releaseCache.at<120000)return releaseCache.value;
  const ref=await github("/git/ref/heads/main");
  const latest=ref?.object?.sha;
  if(typeof latest!=="string"||!sha.test(latest))throw Error("invalid_remote_revision");
@@ -42,8 +45,10 @@ export async function officialRelease(){
   run?.name==="Creative Soundwerks CI"&&run?.head_sha===latest&&
   run?.head_branch==="main"&&run?.event==="push");
  const approved=runs.length===1&&runs[0].status==="completed"&&runs[0].conclusion==="success";
- return {latestSha:latest,approved,ciStatus:runs.length===1?runs[0].status+"/"+runs[0].conclusion:"unverified",
+ const value={latestSha:latest,approved,ciStatus:runs.length===1?runs[0].status+"/"+runs[0].conclusion:"unverified",
   ciUrl:runs.length===1?"https://github.com/"+repo+"/actions/runs/"+runs[0].id:null};
+ releaseCache={at:Date.now(),value};
+ return value;
 }
 async function installedRevision(){
  const state=await readJson(join(updateHome(),"status.json"));
@@ -71,7 +76,7 @@ export async function selfUpdateRoutes(app:FastifyInstance){
   const healthy=!!worker&&typeof worker.seenAt==="string"&&
     Date.now()-Date.parse(worker.seenAt)<180000;
   let release=null,error:string|null=null;
-  try{release=await officialRelease();}catch(e){error=e instanceof Error?e.message:"github_unavailable";}
+  try{release=await officialRelease(new URL(req.url,"http://local").searchParams.get("refresh")==="1");}catch(e){error=e instanceof Error?e.message:"github_unavailable";}
   const current=await installedRevision();
   return {currentSha:current,latestSha:release?.latestSha??null,
    updateAvailable:release?current!==release.latestSha:false,
@@ -91,7 +96,7 @@ export async function selfUpdateRoutes(app:FastifyInstance){
   if(!heartbeat||typeof heartbeat.seenAt!=="string"||
    Date.now()-Date.parse(heartbeat.seenAt)>180000)
    return reply.code(503).send({error:"Independent Creative Soundwerks updater service is not running"});
-  const release=await officialRelease();
+  const release=await officialRelease(true);
   if(!release.approved)return reply.code(409).send({error:"Official GitHub CI has not passed"});
   if(input.targetSha!==release.latestSha)return reply.code(409).send({error:"Update target changed. Check for updates again"});
   if((await installedRevision())===input.targetSha)return reply.code(409).send({error:"Already up to date"});
