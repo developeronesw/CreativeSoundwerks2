@@ -71,7 +71,7 @@ jobs:
           # This catches missing runtime dependencies/migrations in the distribution.
           npm ci --no-audit --no-fund
           npm run db:migrate
-          HOST=127.0.0.1 PORT=8790 /usr/bin/node apps/api/dist/index.js >/tmp/csw-extracted-api.log 2>&1 &
+          HOST=127.0.0.1 PORT=8790 node apps/api/dist/index.js >/tmp/csw-extracted-api.log 2>&1 &
           zip_api_pid=$!
           trap 'kill "$zip_api_pid" 2>/dev/null || true' EXIT
           ready=0
