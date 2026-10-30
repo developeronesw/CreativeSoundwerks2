@@ -32,6 +32,13 @@ test("admin bootstrap and creator isolation",async()=>{
  assert.equal((await call("/media/"+title.body.id+"/stream","GET",undefined,b.cookie)).status,404);
  assert.equal((await call("/cart","POST",{mediaId:title.body.id},b.cookie)).status,400);
  assert.equal((await call("/admin/plans","GET",undefined,b.cookie)).status,403);
+
+ // Native updater is admin-only, cannot be triggered by a creator or anonymous user,
+ // and requires a browser Origin even for a logged-in admin.
+ assert.equal((await call("/admin/updates/apply","POST",{targetSha:"a".repeat(40),password:"anything",confirmed:true})).status,401);
+ assert.equal((await call("/admin/updates/apply","POST",{targetSha:"a".repeat(40),password:"anything",confirmed:true},b.cookie,"http://localhost:5173")).status,403);
+ assert.equal((await call("/admin/updates/apply","POST",{targetSha:"a".repeat(40),password:"AdminPasswordLong!23",confirmed:true},setup.cookie)).status,403);
+
  const plans=await call("/plans"),p=plans.body.items.find(x=>x.name==="Pro Creator");
  assert.ok(p);
  assert.equal((await call("/admin/plans/"+p.id,"PATCH",{amountCents:3500},b.cookie)).status,403);
