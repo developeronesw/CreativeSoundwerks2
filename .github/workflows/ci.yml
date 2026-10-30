@@ -67,6 +67,22 @@ jobs:
           unzip -q out/creative-soundwerks2-install.zip -d /tmp/csw-zip-test
           cd /tmp/csw-zip-test
           bash install.sh --check
+          # Install only from the extracted ZIP, then run a separate API instance.
+          # This catches missing runtime dependencies/migrations in the distribution.
+          npm ci --no-audit --no-fund
+          npm run db:migrate
+          HOST=127.0.0.1 PORT=8790 /usr/bin/node apps/api/dist/index.js >/tmp/csw-extracted-api.log 2>&1 &
+          zip_api_pid=$!
+          trap 'kill "$zip_api_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8790/api/health; then ready=1; break; fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            cat /tmp/csw-extracted-api.log
+            exit 1
+          fi
           test -f apps/web/dist/index.html
           test -f apps/api/dist/index.js
           test -f package-lock.json
