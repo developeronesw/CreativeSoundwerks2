@@ -39,7 +39,6 @@ export async function managedSetupRoutes(app:FastifyInstance){
   const input=dbInput.parse(req.body);
   requireToken(input.setupToken);
   if(configured()||installing)return reply.code(409).send({error:"Database installer already completed or in progress"});
-  installing=true;
   // Trust only the operator's setup token; do not accept remote browser execution
   // commands, file paths, shell fragments or arbitrary connection strings.
   const publicOrigin=new URL(input.publicUrl);
@@ -49,6 +48,7 @@ export async function managedSetupRoutes(app:FastifyInstance){
    return reply.code(400).send({error:"Enter the site origin only (https://your-domain)"});
   const conn = new URL("postgresql://"+input.host+":"+input.port+"/"+input.database);
   conn.username=input.username;conn.password=input.password;
+  installing=true;
   const candidate=new pg.Pool({connectionString:conn.toString(),max:10,connectionTimeoutMillis:7000});
   let transferred=false;
   try{
