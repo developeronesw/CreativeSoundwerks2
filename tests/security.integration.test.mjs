@@ -93,6 +93,62 @@ test("admin bootstrap and creator isolation",async()=>{
   assert.equal((await range.arrayBuffer()).byteLength,32);
   assert.equal((await call("/library/"+videoId,"GET",undefined,setup.cookie)).status,200,"Administrator can inspect all");
   assert.equal((await call("/library/"+videoId,"DELETE",undefined,b.cookie)).status,200,"Unattached owner asset can be removed");
+
+ // Artwork must be real raster imagery, converted to canonical WebP.
+ const sendImage=async(cookie,name,bytes,route="/library/image")=>{
+  const form=new FormData();
+  form.append("file",new Blob([bytes],{type:"application/octet-stream"}),name);
+  const response=await fetch("http://127.0.0.1:8787/api"+route,{method:"POST",headers:{cookie},body:form});
+  return {status:response.status,body:await response.json().catch(()=>({}))};
+ };
+ const check=await call("/setup/prerequisites");
+ assert.equal(check.status,200);
+ assert.equal(check.body.ffmpeg.ready,true);
+ assert.equal(check.body.ffprobe.ready,true);
+ const sample=Buffer.from("<?php echo 'x'; ?>");
+ for(const name of ["upload.php","data.json","note.txt","vector.svg","cover.png","photo.jpg","poster.webp"]){
+  const result=await sendImage(a.cookie,name,sample);
+  assert.equal(result.status,415,JSON.stringify({name,result}));
+ }
+ const coverPath=join(temp,"cover.png");
+ execFileSync("ffmpeg",["-hide_banner","-loglevel","error","-f","lavfi","-i","color=c=blue:s=160x160:r=1:d=1","-frames:v","1","-y",coverPath]);
+ const png=readFileSync(coverPath);
+ assert.equal((await sendImage(a.cookie,"cover.php",png)).status,415,"Real PNG renamed to PHP must fail");
+ const artwork=await sendImage(a.cookie,"ArtWork.PNG",png);
+ assert.equal(artwork.status,201,JSON.stringify(artwork.body));
+ assert.equal(artwork.body.item.media_type,"image");
+ assert.equal(artwork.body.item.mime_type,"image/webp");
+ const artworkId=artwork.body.item.id;
+ assert.equal((await call("/library/"+artworkId,"GET",undefined,b.cookie)).status,404);
+ assert.equal((await call("/media/"+title.body.id+"/cover","PUT",{assetId:artworkId},b.cookie)).status,404);
+ const ownAlbum=await call("/media","POST",{kind:"album",title:"First Album"},a.cookie);
+ assert.equal(ownAlbum.status,201,JSON.stringify(ownAlbum.body));
+ assert.equal((await call("/media/"+ownAlbum.body.id+"/cover","PUT",{assetId:artworkId},a.cookie)).status,200);
+ assert.equal((await call("/library/"+artworkId,"DELETE",undefined,a.cookie)).status,409,"Artwork attached to an album is protected");
+ assert.equal((await call("/media/"+ownAlbum.body.id+"/cover")).status,404,"Draft image cannot be read anonymously");
+ assert.equal((await call("/media/"+ownAlbum.body.id,"PATCH",{visibility:"published"},a.cookie)).status,200);
+ const publicCover=await fetch("http://127.0.0.1:8787/api/media/"+ownAlbum.body.id+"/cover");
+ assert.equal(publicCover.status,200);
+ assert.match(publicCover.headers.get("content-type")||"",/image\/webp/);
+ const buffer=Buffer.from(await publicCover.arrayBuffer());
+ assert.equal(buffer.toString("ascii",0,4),"RIFF");
+ assert.equal(buffer.toString("ascii",8,12),"WEBP");
+ const catalog=await call("/media");
+ assert.ok(catalog.body.items.find(x=>x.id===ownAlbum.body.id)?.cover_asset_id===artworkId);
+ const fan=await call("/auth/register","POST",{displayName:"Regular Fan",email:"fan-"+suffix+"@example.test",password:"FanPasswordLong!23",role:"fan"});
+ assert.equal(fan.status,200);
+ assert.equal((await sendImage(fan.cookie,"fan.png",png)).status,403,"Fans do not access the creator library");
+ const avatar=await sendImage(fan.cookie,"my-photo.png",png,"/profile/avatar/upload");
+ assert.equal(avatar.status,201,JSON.stringify(avatar.body));
+ assert.equal((await call("/library/"+avatar.body.item.id,"GET",undefined,a.cookie)).status,404);
+ assert.equal((await call("/profile/avatar","PUT",{assetId:artworkId},fan.cookie)).status,404,"Fans cannot claim other creators' covers");
+ const self=await call("/me","GET",undefined,fan.cookie);
+ assert.equal(self.body.user.avatar_asset_id,avatar.body.item.id);
+ const visibleAvatar=await fetch("http://127.0.0.1:8787/api/profiles/"+fan.body.user.id+"/avatar");
+ assert.equal(visibleAvatar.status,200);
+ assert.match(visibleAvatar.headers.get("content-type")||"",/image\/webp/);
+ assert.equal((await call("/library/"+avatar.body.item.id,"DELETE",undefined,setup.cookie)).status,409,"Attached avatar is not deletable");
+
  }finally{rmSync(temp,{recursive:true,force:true});}
  assert.equal((await call("/auth/logout","POST",{},a.cookie)).status,200);
  assert.equal((await call("/media/mine","GET",undefined,a.cookie)).status,401);
