@@ -5,7 +5,7 @@ import argon2 from "argon2";
 import {z} from "zod";
 import {join,dirname,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
-import {mkdir,readFile,writeFile,open,stat} from "node:fs/promises";
+import {mkdir,readFile,writeFile,open} from "node:fs/promises";
 import {randomUUID} from "node:crypto";
 
 const repo="developeronesw/CreativeSoundwerks2";
