@@ -112,6 +112,8 @@ chown root:csw "$TARGET/.env"
 chmod 0640 "$TARGET/.env"
 cd "$TARGET"
 info "Installing release dependencies and migrating database."
+# Node modules must be readable by the unprivileged csw runtime account.
+umask 022
 npm ci --no-audit --no-fund
 npm run db:migrate
 [[ -f apps/web/dist/index.html && -f apps/api/dist/index.js ]] || die "Compiled application is missing"
