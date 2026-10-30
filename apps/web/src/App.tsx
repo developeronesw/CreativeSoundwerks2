@@ -3,6 +3,7 @@ import { NavLink, Link, Routes, Route, useLocation, useNavigate, Navigate } from
 import { Home, Music2, Film, Tv, Users, UploadCloud, Megaphone, Crown, Search, ShoppingCart, ShieldCheck, LogOut, Menu, X, ArrowRight, Play, Check, CreditCard, ServerCog, Radio, BarChart3, FolderOpen, Headphones, Settings, LockKeyhole } from "lucide-react";
 import { api, money, uploadToLibrary, type LibraryAsset, type User, type Plan, type Media, type CartItem } from "./api";
 import MediaLibrary from "./MediaLibrary";
+import Profile from "./Profile";
 import { PlayerProvider } from "./Player";
 import { FeatureTiles, MediaCard, Plans, Section } from "./components";
 
@@ -20,7 +21,7 @@ function Shell({children,user,logout,setup}:{children:ReactNode;user:User|null;l
  {mobile&&<button className="mobile-overlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}
  <div className="workspace"><header className="topbar"><button className="mobile-menu" onClick={()=>setMobile(!mobile)} aria-label="Menu">{mobile?<X/>:<Menu/>}</button><div className="top-links"><Link to="/">Home</Link><Link to="/music">Music</Link><Link to="/movies">Movies</Link><Link to="/tv">TV Shows</Link><Link to="/creators">Creators</Link><Link to="/pricing">Plans</Link></div>
  <div className="search-wrap"><Search size={17}/><input placeholder="Search music, movies, TV shows..." aria-label="Search catalog" onKeyDown={e=>{if(e.key==="Enter")window.location.assign("/music?q="+encodeURIComponent(e.currentTarget.value));}}/></div>
- <div className="top-actions">{user?<><span className="user-greet">{user.display_name}</span><button className="text-button" onClick={logout}><LogOut size={17}/><span>Sign out</span></button></>:<><Link className="text-button" to="/login">Sign in</Link><Link className="btn-gold compact" to="/join">Get started <ArrowRight size={16}/></Link></>}</div></header>
+ <div className="top-actions">{user?<><Link to="/profile" className="profile-top">{user.avatar_asset_id?<img src={"/api/profiles/"+user.id+"/avatar?v="+user.avatar_asset_id} alt="Your avatar"/>:<Users size={18}/>}<span className="user-greet">{user.display_name}</span></Link><button className="text-button" onClick={logout}><LogOut size={17}/><span>Sign out</span></button></>:<><Link className="text-button" to="/login">Sign in</Link><Link className="btn-gold compact" to="/join">Get started <ArrowRight size={16}/></Link></>}</div></header>
  <main className="page-body">{setup&&loc.pathname!=="/setup"?<div className="setup-warning"><LockKeyhole size={18}/>Administrator setup must be completed before public registration. <Link to="/setup">Initialize platform</Link></div>:null}{children}</main></div></div>;
 }
 function HomePage({items,plans,user}:{items:Media[];plans:Plan[];user:User|null}){
@@ -57,12 +58,17 @@ function AuthPage({mode,onAuth}:{mode:"login"|"join";onAuth:Refresh}){
 }
 function SetupPage({required,onAuth}:{required:boolean|undefined;onAuth:Refresh}){
  const navigate=useNavigate();const [displayName,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[token,setToken]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const [preflight,setPreflight]=useState<{ready:boolean;ffmpeg:{ready:boolean;version:string|null};ffprobe:{ready:boolean;version:string|null};node:string}|null>(null);
+ useEffect(()=>{api<typeof preflight>("/setup/prerequisites").then(setPreflight).catch(()=>{});},[]);
  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");try{await api("/setup/initialize",{method:"POST",body:JSON.stringify({displayName,email,password,setupToken:token})});await onAuth();navigate("/admin");}catch(err){setError((err as Error).message);}finally{setBusy(false);}}
  if(required===false)return <Navigate to="/admin" replace/>;
- return <div className="setup-layout"><div className="setup-aside"><ShieldCheck size={46}/><div className="eyebrow">FIRST RUN INSTALLER</div><h1>Welcome to your new Creative Soundwerks.</h1><p>Securely initialize your self-hosted platform. The first administrator is created with an environment-only setup token.</p><div className="setup-steps"><span className="now">01 · Create administrator</span><span>02 · Configure memberships</span><span>03 · Connect Stripe</span><span>04 · Upload your first release</span></div></div><form className="auth-form setup-form" onSubmit={submit}><h2>Create first admin account</h2><p>This setup is only available before the first user exists.</p><label>Administrator name<input required minLength={2} value={displayName} onChange={e=>setName(e.target.value)}/></label><label>Administrator email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Strong password (12+ characters)<input type="password" required minLength={12} value={password} onChange={e=>setPassword(e.target.value)}/></label><label>Private setup token from server .env<input type="password" required minLength={24} value={token} onChange={e=>setToken(e.target.value)}/></label>{error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Initializing...":"Create Administrator & Continue"} <ArrowRight size={17}/></button><small>Keep the setup token private. Never include it in client source or a public repository.</small></form></div>;
+ return <div className="setup-layout"><div className="setup-aside"><ShieldCheck size={46}/><div className="eyebrow">FIRST RUN INSTALLER</div><h1>Welcome to your new Creative Soundwerks.</h1><p>Securely initialize your self-hosted platform. The first administrator is created with an environment-only setup token.</p><div className="setup-steps"><span className="now">01 · Create administrator</span><span>02 · Configure memberships</span><span>03 · Connect Stripe</span><span>04 · Upload your first release</span></div></div><form className="auth-form setup-form" onSubmit={submit}><h2>Create first admin account</h2><p>This setup is only available before the first user exists.</p>
+ <div className="setup-preflight"><strong>Media processing prerequisites</strong>
+ {preflight?<><span>FFmpeg: {preflight.ffmpeg.ready?"Ready":"Missing"} · FFprobe: {preflight.ffprobe.ready?"Ready":"Missing"}</span>
+ {!preflight.ready&&<p className="error">On your VPS, run <code>sudo bash scripts/install-ubuntu.sh</code> to install both tools automatically before launching the service.</p>}</>:<span>Checking server prerequisites…</span>}</div><label>Administrator name<input required minLength={2} value={displayName} onChange={e=>setName(e.target.value)}/></label><label>Administrator email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Strong password (12+ characters)<input type="password" required minLength={12} value={password} onChange={e=>setPassword(e.target.value)}/></label><label>Private setup token from server .env<input type="password" required minLength={24} value={token} onChange={e=>setToken(e.target.value)}/></label>{error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Initializing...":"Create Administrator & Continue"} <ArrowRight size={17}/></button><small>Keep the setup token private. Never include it in client source or a public repository.</small></form></div>;
 }
 function UploadPage({user,refresh}:{user:User|null;refresh:Refresh}){
- const [kind,setKind]=useState("track"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[genre,setGenre]=useState(""),[price,setPrice]=useState("0"),[file,setFile]=useState<File|null>(null),[selected,setSelected]=useState(""),[library,setLibrary]=useState<LibraryAsset[]>([]),[mine,setMine]=useState<Media[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const [kind,setKind]=useState("track"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[genre,setGenre]=useState(""),[price,setPrice]=useState("0"),[file,setFile]=useState<File|null>(null),[selected,setSelected]=useState(""),[coverSelected,setCoverSelected]=useState(""),[coverFile,setCoverFile]=useState<File|null>(null),[library,setLibrary]=useState<LibraryAsset[]>([]),[mine,setMine]=useState<Media[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  async function load(){
   if(!user||user.role==="fan")return;
   try{
@@ -76,6 +82,7 @@ function UploadPage({user,refresh}:{user:User|null;refresh:Refresh}){
  const collection=["album","tv_show"].includes(kind);
  const mediaType=kind==="track"?"audio":"video";
  const compatible=library.filter(a=>a.media_type===mediaType);
+ const coverImages=library.filter(a=>a.media_type==="image");
  async function submit(e:FormEvent){
   e.preventDefault();setBusy(true);setError("");
   try{
@@ -85,8 +92,12 @@ function UploadPage({user,refresh}:{user:User|null;refresh:Refresh}){
     if(!assetId)throw new Error("Select a file from your Media Library, or upload a new audio/video file");
     await api("/media/"+id+"/asset",{method:"PUT",body:JSON.stringify({assetId})});
    }
+   if(coverFile||coverSelected){
+    const assetId=coverFile?(await uploadToLibrary(coverFile)).item.id:coverSelected;
+    await api("/media/"+id+"/cover",{method:"PUT",body:JSON.stringify({assetId})});
+   }
    await api("/media/"+id,{method:"PATCH",body:JSON.stringify({visibility:"published"})});
-   setTitle("");setDescription("");setGenre("");setFile(null);setPrice("0");setSelected("");
+   setTitle("");setDescription("");setGenre("");setFile(null);setCoverFile(null);setCoverSelected("");setPrice("0");setSelected("");
    await load();await refresh();
   }catch(e){setError((e as Error).message+" — the draft is kept in your account if it was created.");}
   finally{setBusy(false);}
@@ -109,6 +120,11 @@ function UploadPage({user,refresh}:{user:User|null;refresh:Refresh}){
  <label className="file-drop"><UploadCloud size={33}/><strong>{file?file.name:"Choose audio/video file"}</strong><small>MP3, WAV, FLAC, OGG, M4A, MP4, MOV, WEBM only · 1 GB maximum</small><input type="file" accept={mediaType==="audio"?".mp3,.wav,.flac,.ogg,.m4a,audio/*":".mp4,.mov,.webm,video/*"} onChange={e=>{setFile(e.target.files?.[0]||null);setSelected("");}}/></label>
  <Link to="/library" className="small-link">Open full Media Library <ArrowRight size={14}/></Link>
  </div>}
+ <div className="asset-select"><strong>Album cover / Movie poster / Series artwork</strong>
+ <label>Choose an existing image<select value={coverSelected} onChange={e=>{setCoverSelected(e.target.value);setCoverFile(null);}}><option value="">No cover selected</option>{coverImages.map(a=><option value={a.id} key={a.id}>{a.original_name}</option>)}</select></label>
+ <label className="file-drop"><UploadCloud size={28}/><strong>{coverFile?.name||"Upload new cover artwork (optional)"}</strong><small>JPG, JPEG, PNG, WebP only · Max 10 MB</small>
+ <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={e=>{setCoverFile(e.target.files?.[0]||null);setCoverSelected("");}}/></label>
+ </div>
  {error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Publishing...":"Create and Publish"} <UploadCloud size={17}/></button></form>
  <div className="surface-card"><h2>My releases <span className="muted">({mine.length})</span></h2>{mine.length?mine.map(m=><div key={m.id} className="row-entry"><div><strong>{m.title}</strong><small>{m.kind.replaceAll("_"," ")} · {m.visibility} · {money(m.price_cents)}</small></div><button className="btn-outline" onClick={()=>toggle(m)}>{m.visibility==="published"?"Unpublish":"Publish"}</button></div>):<p className="muted">No releases yet. Your media files stay private until attached to a published release.</p>}</div>
  </div></>;
@@ -158,6 +174,7 @@ export default function App(){
  <Route path="/setup" element={<SetupPage required={setup} onAuth={refresh}/>}/>
  <Route path="/upload" element={<UploadPage user={user} refresh={refresh}/>}/>
  <Route path="/library" element={<MediaLibrary user={user}/>}/>
+ <Route path="/profile" element={<Profile user={user} onUpdated={refresh}/>}/>
  <Route path="/pricing" element={<PricingPage plans={plans} user={user}/>}/>
  <Route path="/cart" element={<CartPage user={user}/>}/>
  <Route path="/ads" element={<AdsPage user={user}/>}/>
