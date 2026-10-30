@@ -4,18 +4,20 @@
 
 The new Creative Soundwerks is a streaming and creator-commerce foundation for music, movies, TV, episodes, short films, music videos, and advertisements. Visual contract: ivory / champagne gold / midnight charcoal, with a persistent audio player and floating mini-video player.
 
-## Upload-and-extract ZIP installer
+## Install directly from GitHub Download ZIP
 
-Creative Soundwerks 2 can be installed from a self-contained, compiled ZIP on a fresh Ubuntu/Debian VPS. Download the GitHub Actions artifact `creative-soundwerks2-install`, extract its inner `creative-soundwerks2-install.zip`, and use:
+Creative Soundwerks 2 is **standalone Node.js software** and does not need DevOne Server Software. On a fresh Ubuntu 24.04/Debian 12 VPS, download this repository using **Code → Download ZIP**, upload it via SSH/SFTP or your hosting file manager, extract it, and run:
 
 ```bash
-mkdir -p ~/csw-install && cd ~/csw-install
-unzip /path/to/creative-soundwerks2-install.zip
+unzip CreativeSoundwerks2-main.zip
+cd CreativeSoundwerks2-main
 bash install.sh --check
 sudo bash install.sh --domain media.example.com --email you@example.com
 ```
 
-The installer configures Node.js, PostgreSQL, FFmpeg/FFprobe, Nginx/Let's Encrypt HTTPS and the service. Finish first-admin setup at `https://media.example.com/setup`. **Extracting alone does not start Node.js**; the VPS installer command is required. It refuses existing installations. See [detailed ZIP installation steps](docs/install-from-zip.md).
+The installer installs Node.js 22, PostgreSQL, Nginx, FFmpeg/FFprobe and HTTPS; it also automatically installs npm dependencies, **builds the React/Vite frontend and Node.js backend from the extracted source**, applies database migrations, and starts the service. Complete the first admin account at `https://media.example.com/setup`. No additional distribution ZIP is required.
+
+**Note:** Extracting files alone is not enough to run a Node application; a sudo-capable VPS with terminal or equivalent hosting-panel command execution is required. The installer deliberately refuses to overwrite an existing deployment. See [GitHub ZIP installation guide](docs/install-from-zip.md).
 
 ## Development setup
 
