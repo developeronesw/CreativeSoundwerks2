@@ -76,7 +76,7 @@ async function restorePrevious(state){
  const db=new URL(settings.DATABASE_URL||"");
  if(!["postgresql:","postgres:"].includes(db.protocol)||!state.backupFile)
   throw Error("database_backup_unavailable");
- const password=db.password;db.password="";
+ const password=decodeURIComponent(db.password);db.password="";
  await run("/usr/bin/pg_restore",["--clean","--if-exists","--no-owner",
   "--no-privileges","--exit-on-error","--dbname="+db.toString(),
   join(home,"backups",state.backupFile)],home,{PGPASSWORD:password});
@@ -121,6 +121,11 @@ if(status?.stage==="restart_required"){
    await run("/usr/bin/git",["remote","add","origin","https://github.com/"+repo+".git"],stage);
    await run("/usr/bin/git",["fetch","--depth","1","--no-tags","origin",job.targetSha],stage);
    await run("/usr/bin/git",["checkout","-q","--detach","FETCH_HEAD"],stage);
+   const actualRevision=await new Promise((resolve,reject)=>{
+    execFile("/usr/bin/git",["rev-parse","HEAD"],{cwd:stage,env,maxBuffer:8192,timeout:10000},(e,out)=>
+      e?reject(Error("revision_verification_failed")):resolve(out.trim()));
+   });
+   if(actualRevision!==job.targetSha)throw Error("download_revision_mismatch");
    await run("/usr/bin/npm",["install","--include=dev","--no-audit","--no-fund"],stage);
    await run("/usr/bin/npm",["run","check"],stage);
    await run("/usr/bin/npm",["run","build"],stage);
@@ -129,7 +134,7 @@ if(status?.stage==="restart_required"){
    await save("backing_up",job);
    const db=new URL(settings.DATABASE_URL||"");
    if(!["postgresql:","postgres:"].includes(db.protocol))throw Error("database_configuration_missing");
-   const password=db.password;db.password="";
+   const password=decodeURIComponent(db.password);db.password="";
    const backups=join(home,"backups");
    await mkdir(backups,{recursive:true,mode:0o700});
    backup="db-"+job.id+".dump";
