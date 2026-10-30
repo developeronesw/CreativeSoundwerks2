@@ -48,6 +48,8 @@ jobs:
           grep -q 'CSW_UPDATE_ROOT' deploy/creative-soundwerks-updater.service
           grep -q 'ExecStartPost' deploy/creative-soundwerks-updater.service
       - run: npm run check
+      - name: Test official GitHub update approval policy
+        run: node --import tsx --test tests/self-updates.policy.test.mjs
       - run: npm run build
       - name: Validate managed panel preparation
         run: |
