@@ -26,7 +26,7 @@ export default function AdminUpdates(){
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[password,setPassword]=useState(""),[approved,setApproved]=useState(false),[feedback,setFeedback]=useState("");
  const refresh=async(silent=false)=>{
   if(!silent)setBusy(true);
-  try{setStatus(await api<Status>("/admin/updates"));if(!silent)setError("");}
+  try{setStatus(await api<Status>("/admin/updates"+(silent?"":"?refresh=1")));if(!silent)setError("");}
   catch(e){if(!silent)setError((e as Error).message);}
   finally{if(!silent)setBusy(false);}
  };
