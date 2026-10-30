@@ -24,7 +24,8 @@ if(process.argv.includes("--check")){
   console.error("Will not overwrite credentials. Use the existing setup token or contact your hosting administrator.");
   process.exitCode=1;
  }else{
-  const token=randomBytes(32).toString("hex");
+  const token=process.env.CSW_SETUP_TOKEN || randomBytes(32).toString("hex");
+  if(token.length<24)throw Error("CSW_SETUP_TOKEN must contain at least 24 characters");
   const text = [
    "NODE_ENV=production","HOST=127.0.0.1","PORT="+(process.env.PORT||"8787"),
    "COOKIE_SECURE=true","CSW_SETUP_TOKEN="+token,"MEDIA_ROOT="+mediaPath,
