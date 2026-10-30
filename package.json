@@ -14,6 +14,9 @@
     "db:migrate": "npm run db:migrate -w @csw/api",
     "build": "npm run build -w @csw/api && npm run build -w @csw/web",
     "check": "npm run check -w @csw/api && npm run check -w @csw/web",
-    "setup:system": "bash scripts/install-ubuntu.sh"
+    "setup:system": "bash scripts/install-ubuntu.sh",
+    "setup:panel": "node scripts/prepare-panel.mjs",
+    "setup:panel:check": "node scripts/prepare-panel.mjs --check",
+    "start": "npm run start -w @csw/api"
   }
 }
