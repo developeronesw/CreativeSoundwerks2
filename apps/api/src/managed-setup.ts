@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
-import { configured, pool, switchDatabase } from "./db.js";
+import { configured, switchDatabase } from "./db.js";
 import { runMigrations } from "./migrations.js";
 
 const configPath=resolve(process.env.CSW_CONFIG_PATH || fileURLToPath(new URL("../../../.env",import.meta.url)));
@@ -25,6 +25,7 @@ function requireToken(input:string){
  const a=createHash("sha256").update(input).digest(),b=createHash("sha256").update(secret).digest();
  if(!timingSafeEqual(a,b))throw unauthorized();
 }
+let installing=false;
 export async function managedSetupRoutes(app:FastifyInstance){
  // Expose only non-secret diagnostics. No database secrets or filesystem paths.
  app.get("/api/setup/environment",async()=>{
@@ -37,7 +38,8 @@ export async function managedSetupRoutes(app:FastifyInstance){
  app.post("/api/setup/database",{config:{rateLimit:{max:5,timeWindow:"1 minute"}}},async(req,reply)=>{
   const input=dbInput.parse(req.body);
   requireToken(input.setupToken);
-  if(configured())return reply.code(409).send({error:"Database already configured"});
+  if(configured()||installing)return reply.code(409).send({error:"Database installer already completed or in progress"});
+  installing=true;
   // Trust only the operator's setup token; do not accept remote browser execution
   // commands, file paths, shell fragments or arbitrary connection strings.
   const publicOrigin=new URL(input.publicUrl);
@@ -51,13 +53,17 @@ export async function managedSetupRoutes(app:FastifyInstance){
   let transferred=false;
   try{
    await candidate.query("SELECT 1");
+   const existingUsers=await candidate.query("SELECT to_regclass('public.users') AS table_name");
+   if(existingUsers.rows[0]?.table_name){
+    const prior=await candidate.query("SELECT 1 FROM users LIMIT 1");
+    if(prior.rowCount)return reply.code(409).send({error:"This database already has accounts"});
+   }
    await runMigrations(candidate);
-   // A database containing users must never be imported as an unowned install.
    const owner=await candidate.query("SELECT 1 FROM users LIMIT 1");
    if(owner.rowCount)return reply.code(409).send({error:"This database already has accounts"});
    // The generated .env must be writable by the application's OS user.
    // Atomically replace it without revealing the credentials to frontend APIs.
-   let existing=await readFile(configPath,"utf8");
+   const existing=await readFile(configPath,"utf8");
    if(/^\s*DATABASE_URL\s*=/m.test(existing))
     return reply.code(409).send({error:"Database configuration already exists in the server environment"});
    if(!existing.includes("CSW_SETUP_TOKEN="))
@@ -76,6 +82,6 @@ export async function managedSetupRoutes(app:FastifyInstance){
    req.log.error({error:e},"Database installer failed");
    if((e as {statusCode?:number}).statusCode)throw e;
    return reply.code(400).send({error:"Could not connect, initialize schema or save configuration. Check database permissions and server configuration."});
-  }finally{if(!transferred)await candidate.end();}
+  }finally{installing=false;if(!transferred)await candidate.end();}
  });
 }
