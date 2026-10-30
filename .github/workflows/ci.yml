@@ -36,7 +36,10 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - name: Validate VPS installer syntax
-        run: bash -n scripts/install-ubuntu.sh
+        run: |
+          bash -n install.sh
+          bash -n scripts/install-ubuntu.sh
+          bash -n scripts/build-install-zip.sh
       - run: npm run check
       - run: npm run build
       - name: Ensure FFmpeg and FFprobe are available
@@ -56,6 +59,28 @@ jobs:
           exit 1
       - name: Verify authorization and billing boundary
         run: node --test tests/security.integration.test.mjs
+      - name: Build upload-and-extract installer ZIP
+        run: bash scripts/build-install-zip.sh
+      - name: Verify ZIP can be extracted and preflight checked
+        run: |
+          mkdir -p /tmp/csw-zip-test
+          unzip -q out/creative-soundwerks2-install.zip -d /tmp/csw-zip-test
+          cd /tmp/csw-zip-test
+          bash install.sh --check
+          test -f apps/web/dist/index.html
+          test -f apps/api/dist/index.js
+          test -f package-lock.json
+          if unzip -Z1 "$GITHUB_WORKSPACE/out/creative-soundwerks2-install.zip" | grep -Eq '(^|/)(node_modules|\.env|\.git|storage)(/|$)'; then
+            echo "Unsafe file found in distributable ZIP" >&2
+            exit 1
+          fi
+      - name: Publish installable ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: creative-soundwerks2-install
+          path: out/creative-soundwerks2-install.zip
+          if-no-files-found: error
+          retention-days: 30
       - name: Publish result as a commit status
         if: always()
         continue-on-error: true
