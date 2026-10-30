@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { pool, query } from "./db.js";
 
-export type Actor = { id: string; email: string; display_name: string; role: "admin"|"creator"|"fan"; creator_type: string|null };
+export type Actor = { id: string; email: string; display_name: string; role: "admin"|"creator"|"fan"; creator_type: string|null; avatar_asset_id:string|null };
 const SESSION_AGE = 60 * 60 * 24 * 14;
 const secure = process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
 export const credentials = z.object({ email: z.email().max(254), password: z.string().min(12).max(256) });
@@ -17,7 +17,7 @@ export async function actor(req: FastifyRequest): Promise<Actor|null> {
  const token = req.cookies?.csw_session;
  if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
  const hash = createHash("sha256").update(token).digest("hex");
- const r = await query<Actor>("SELECT u.id,u.email,u.display_name,u.role,u.creator_type FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()",[hash]);
+ const r = await query<Actor>("SELECT u.id,u.email,u.display_name,u.role,u.creator_type,u.avatar_asset_id FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()",[hash]);
  return r.rows[0] || null;
 }
 export async function requireActor(req: FastifyRequest): Promise<Actor> {
