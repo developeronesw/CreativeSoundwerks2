@@ -51,6 +51,28 @@ jobs:
       - name: Test official GitHub update approval policy
         run: node --import tsx --test tests/self-updates.policy.test.mjs
       - run: npm run build
+      - name: Smoke-test independent updater service and standalone launcher
+        run: |
+          TEMP_UPDATES="$(mktemp -d)"
+          printf 'PORT=8792\n' > "$TEMP_UPDATES/.env"
+          export CSW_INSTALL_ROOT="$GITHUB_WORKSPACE"
+          export CSW_CONFIG_PATH="$TEMP_UPDATES/.env"
+          export CSW_UPDATE_ROOT="$TEMP_UPDATES/updates"
+          node scripts/self-updater.mjs
+          test -f "$CSW_UPDATE_ROOT/worker.json"
+          node scripts/update-boot.mjs > /tmp/csw-independent-boot.log 2>&1 &
+          csw_boot_pid=$!
+          trap 'kill "$csw_boot_pid" 2>/dev/null || true; rm -rf "$TEMP_UPDATES"' EXIT
+          ready=0
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8792/api/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            cat /tmp/csw-independent-boot.log
+            exit 1
+          fi
+          test -f "$CSW_UPDATE_ROOT/server.json"
       - name: Validate managed panel preparation
         run: |
           node --check scripts/prepare-panel.mjs
