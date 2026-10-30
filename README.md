@@ -35,3 +35,11 @@ This first implementation provides the working platform foundation, first-admin 
 ## Legacy features slated for migration
 
 Artist profiles, single/album releases, label management, split payouts, Stripe Connect, KYC, radio hosting and DJs, EPKs, storefront products, smart links, membership fan clubs, pay-per-view and advertising.
+
+## Unified Media Library (audio/video only)
+
+Uploads now go through one central `Media Library` rather than separate WordPress-like file managers for songs, movies, and TV. Each asset is linked to the authenticated uploader and kept in private VPS-local storage; a creator can see only their own assets. The admin-only `Entire library` view lists uploads across users.
+
+The upload server accepts **MP3, FLAC, WAV, OGG, M4A, MP4, MOV and WEBM** after validating file extensions, binary signatures and FFprobe-detected playable streams. Text, PHP, JSON, images and disguised executable/document files are rejected; client filename or MIME declarations are never trusted. Existing media references are migrated to the central asset table without copying files. See [Media Library architecture](docs/media-library.md).
+
+FFmpeg and FFprobe must be installed before attempting real uploads. Full adaptive transcoding and malware scanning remain separate production workstreams.
