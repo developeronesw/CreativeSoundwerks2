@@ -42,8 +42,7 @@ export default function AdminUpdates(){
   if(!status?.latestSha)return;
   setBusy(true);setError("");setFeedback("");
   try{
-   await api("/admin/updates/apply",{method:"POST",headers:{Origin:window.location.origin},
-    body:JSON.stringify({targetSha:status.latestSha,password,confirmed:true})});
+   await api("/admin/updates/apply",{method:"POST",body:JSON.stringify({targetSha:status.latestSha,password,confirmed:true})});
    setFeedback("Update request accepted. Creative Soundwerks will build, back up, and apply it through its independent updater.");
    setPassword("");setApproved(false);
    await refresh(true);
