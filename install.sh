@@ -139,6 +139,17 @@ sed -e "s/CSW_DOMAIN_PLACEHOLDER/$DOMAIN/g" \
  "$TARGET/deploy/nginx-https.conf.template" > "$NGINX_FILE"
 nginx -t
 systemctl reload nginx
+# Reload Nginx after successful Let's Encrypt renewals.
+install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
+cat > /etc/letsencrypt/renewal-hooks/deploy/creative-soundwerks-nginx <<'RENEW'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+systemctl reload nginx
+RENEW
+chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/creative-soundwerks-nginx
+if systemctl list-unit-files --type=timer | grep -q '^certbot.timer'; then
+ systemctl enable --now certbot.timer
+fi
 install -m 0644 "$TARGET/deploy/creative-soundwerks.service" /etc/systemd/system/creative-soundwerks.service
 systemctl daemon-reload
 systemctl enable --now creative-soundwerks
