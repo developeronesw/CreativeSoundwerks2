@@ -21,7 +21,9 @@ export const videoKind=(kind:string)=>["music_video","movie","short_film","episo
 export async function uploadToLibrary(file:File):Promise<{item:LibraryAsset}>{
  const body=new FormData();
  body.append("file",file);
- const response=await fetch("/api/library/upload",{method:"POST",body,credentials:"same-origin"});
+ const ext=file.name.split(".").pop()?.toLowerCase()||"";
+ const route=imageExtensions.includes(ext)?"/api/library/image":"/api/library/upload";
+ const response=await fetch(route,{method:"POST",body,credentials:"same-origin"});
  const result=await response.json().catch(()=>({}));
  if(!response.ok)throw new Error(result.error||"Unable to upload media");
  return result as {item:LibraryAsset};
