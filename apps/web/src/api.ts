@@ -1,7 +1,7 @@
-export type User={id:string;email:string;display_name:string;role:"admin"|"creator"|"fan";creator_type?:string|null};
+export type User={id:string;email:string;display_name:string;role:"admin"|"creator"|"fan";creator_type?:string|null;avatar_asset_id?:string|null};
 export type Plan={id:string;audience:"creator"|"fan";name:string;description:string;amount_cents:number;upload_limit:number;features:string[];active?:boolean};
-export type Media={id:string;kind:string;title:string;description?:string;genre?:string;creator?:string;price_cents:number;visibility?:string;uploaded?:boolean;owner_id?:string};
-export type LibraryAsset={id:string;owner_id:string;original_name:string;media_type:"audio"|"video";mime_type:string;size_bytes:number;extension:string;created_at:string;uploader_name?:string;uploader_email?:string};
+export type Media={id:string;kind:string;title:string;description?:string;genre?:string;creator?:string;price_cents:number;visibility?:string;uploaded?:boolean;owner_id?:string;cover_asset_id?:string|null};
+export type LibraryAsset={id:string;owner_id:string;original_name:string;media_type:"audio"|"video"|"image";mime_type:string;size_bytes:number;extension:string;created_at:string;uploader_name?:string;uploader_email?:string};
 export type CartItem={id:string;kind:string;title:string;price_cents:number};
 export async function api<T>(path:string,options:RequestInit={}):Promise<T>{
  const res=await fetch("/api"+path,{credentials:"same-origin",...options,headers:{"Content-Type":"application/json",...options.headers}});
@@ -26,3 +26,5 @@ export async function uploadToLibrary(file:File):Promise<{item:LibraryAsset}>{
  if(!response.ok)throw new Error(result.error||"Unable to upload media");
  return result as {item:LibraryAsset};
 }
+
+export const imageExtensions=["jpg","jpeg","png","webp"];
