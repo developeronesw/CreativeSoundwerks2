@@ -20,8 +20,8 @@ apt-get update
 apt-get install -y --no-install-recommends ca-certificates ffmpeg postgresql nginx
 command -v ffmpeg >/dev/null || { echo "FFmpeg installation failed" >&2; exit 1; }
 command -v ffprobe >/dev/null || { echo "FFprobe installation failed" >&2; exit 1; }
-ffmpeg -version | head -n 1
-ffprobe -version | head -n 1
+ffmpeg -version | sed -n "1p"
+ffprobe -version | sed -n "1p"
 if ! command -v node >/dev/null; then
  echo "Node.js 22.12+ is required. Install supported Node.js before npm install." >&2
  exit 1
