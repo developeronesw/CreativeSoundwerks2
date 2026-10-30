@@ -42,8 +42,6 @@ test("admin bootstrap and creator isolation",async()=>{
  const ad=await call("/ads","POST",{title:"Test audio ad",format:"audio",budgetCents:1500},a.cookie);
  assert.equal(ad.status,201,JSON.stringify(ad.body));
  assert.equal((await call("/ads/"+ad.body.id,"PATCH",{title:"Changed"},b.cookie)).status,404);
- assert.equal((await call("/auth/logout","POST",{},a.cookie)).status,200);
- assert.equal((await call("/media/mine","GET",undefined,a.cookie)).status,401);
 
  // Audio/video content is stored once in an owner-scoped library, never in public web roots.
  const sendAsset=async (cookie,name,bytes,mime="application/octet-stream")=>{
@@ -96,6 +94,8 @@ test("admin bootstrap and creator isolation",async()=>{
   assert.equal((await call("/library/"+videoId,"GET",undefined,setup.cookie)).status,200,"Administrator can inspect all");
   assert.equal((await call("/library/"+videoId,"DELETE",undefined,b.cookie)).status,200,"Unattached owner asset can be removed");
  }finally{rmSync(temp,{recursive:true,force:true});}
+ assert.equal((await call("/auth/logout","POST",{},a.cookie)).status,200);
+ assert.equal((await call("/media/mine","GET",undefined,a.cookie)).status,401);
 
  await db.end();
 });
