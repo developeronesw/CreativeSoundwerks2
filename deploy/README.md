@@ -1,15 +1,16 @@
-# VPS deployment notes (Ubuntu 24.04)
+# Creative Soundwerks 2 — Self-hosted VPS installation
 
-**Install and verify on a staging VPS before sending traffic.** The prerequisite script installs FFmpeg, FFprobe, PostgreSQL and Nginx. Deployment files are templates, not a completed one-command application deploy.
+The platform runs independently of DevOne Server Software. **Use the standard GitHub Download ZIP**; there is no separate release ZIP and no git clone is required.
 
-1. Run `sudo bash scripts/install-ubuntu.sh` from the repository root on Ubuntu/Debian. It automatically installs FFmpeg and FFprobe (via the `ffmpeg` OS package), PostgreSQL, Nginx, and CA certificates. The script validates a preinstalled Node.js 22.12+ and npm; install supported Node.js first if absent. Use a dedicated, non-login system user `csw` and a database role with privileges limited to one application database.
-2. Deploy the repository under `/opt/creative-soundwerks`. Use `npm install`, `npm run check`, `npm run build`, and `npm run db:migrate`.
-3. Create `/opt/creative-soundwerks/.env` from the root `.env.example`; permissions `root:csw` and `0640`. Set a long random `CSW_SETUP_TOKEN`, the real local `DATABASE_URL`, `PUBLIC_APP_URL=https://YOUR_DOMAIN`, `NODE_ENV=production`, `COOKIE_SECURE=true`, and `MEDIA_ROOT=/var/lib/creative-soundwerks/media`.
-4. Create the private media directory as `csw:csw`, permissions `0700`. Never place media inside Nginx's web root. Block direct internet access to PostgreSQL and port 8787.
-5. Install `deploy/creative-soundwerks.service` to `/etc/systemd/system/` and `systemctl daemon-reload && systemctl enable --now creative-soundwerks`.
-6. Copy the Nginx example to `/etc/nginx/sites-available/creative-soundwerks`, substitute the actual domain, enable the site, `nginx -t`, reload Nginx, and enable HTTPS using Certbot. Force HTTPS, HSTS, and disable unencrypted login/checkout flows.
-7. Open `https://YOUR_DOMAIN/setup` and create the administrator with the private setup token. Remove/rotate the setup token after successful setup. Register Stripe webhooks at `https://YOUR_DOMAIN/api/stripe/webhook`.
-8. The browser first-run wizard checks FFmpeg and FFprobe availability; uploads of audio/video require FFprobe. Artwork (JPG/PNG/WebP) is decoded and re-encoded to WebP by Sharp. New deployments require migration `003_images.sql`; regular `npm run db:migrate` applies all migrations.
-9. Configure restorable encrypted snapshots of PostgreSQL and the media directory, plus server monitoring and tested recovery procedures.
+From an extracted `CreativeSoundwerks2-main` directory on a fresh Ubuntu 24.04/Debian 12 VPS:
 
-**Critical:** The original file streaming route serves uploaded media with authorized byte ranges. HLS transcoding and content-rights verification are future milestones; do not market 4K adaptive streaming or DRM protection until those are implemented and tested. The Nginx config is a template and must be reviewed for your domain, SSL, and storage capacity.
+```bash
+bash install.sh --check
+sudo bash install.sh --domain media.example.com --email you@example.com
+```
+
+The installer installs Node.js, PostgreSQL, Nginx, FFmpeg/FFprobe, Certbot; installs npm dependencies, checks and builds the application from source, creates local PostgreSQL and private media storage, configures HTTPS and a systemd service. Complete the administrator setup at `https://media.example.com/setup`.
+
+See [full GitHub ZIP installation guide](../docs/install-from-zip.md).
+
+The installer is for a **fresh VPS deployment only** and does not upgrade or migrate an existing deployment. Back up the PostgreSQL database and local media storage together before any future migrations. For paid Stripe transactions, configure server-only Stripe credentials and verify purchase/entitlement behavior before launch.
