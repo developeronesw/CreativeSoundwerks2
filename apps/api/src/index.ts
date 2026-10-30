@@ -10,6 +10,8 @@ import { authRoutes, requireRole } from "./auth.js";
 import { billingRoutes } from "./billing.js";
 import { catalogRoutes } from "./catalog.js";
 import { assetRoutes } from "./assets.js";
+import { imageRoutes } from "./images.js";
+import { prerequisiteRoutes } from "./prerequisites.js";
 
 const app=Fastify({logger:true,bodyLimit:1024*1024,trustProxy:false});
 await app.register(cookie);
@@ -35,6 +37,8 @@ await authRoutes(app);
 await billingRoutes(app);
 await catalogRoutes(app);
 await assetRoutes(app);
+await imageRoutes(app);
+await prerequisiteRoutes(app);
 app.get("/api/admin/stats",async req=>{
  await requireRole(req,["admin"]);
  const r=await query<any>("SELECT (SELECT count(*) FROM users)::int AS users,(SELECT count(*) FROM media)::int AS media,(SELECT count(*) FROM orders WHERE status='paid')::int AS orders,(SELECT count(*) FROM subscriptions WHERE status='active')::int AS subscriptions");
