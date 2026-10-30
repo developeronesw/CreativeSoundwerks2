@@ -44,6 +44,8 @@ jobs:
           node --check scripts/update-boot.mjs
           node --check scripts/self-updater.mjs
           bash -n scripts/enable-independent-updater.sh
+          bash -n scripts/bootstrap-devone-site.sh
+          bash scripts/bootstrap-devone-site.sh --help
           grep -q 'Restart=on-failure' deploy/creative-soundwerks.service
           grep -q 'CSW_UPDATE_ROOT' deploy/creative-soundwerks-updater.service
           grep -q 'ExecStartPost' deploy/creative-soundwerks-updater.service
