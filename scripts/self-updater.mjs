@@ -95,8 +95,7 @@ if(status?.stage==="restart_required"){
   }
  }
 }else if(status?.stage==="rollback_restart_required"){
- if(await health(status.previousSha===
-  "b4110f83a186dff110faf0f69312397904ad1930"?null:status.previousSha)){
+ if(await health(shaPattern.test(status.previousSha||"")?status.previousSha:null)){
   await save("rolled_back",status,"new_release_unhealthy",{installedSha:status.previousSha});
   await rm(join(home,"maintenance.flag"),{force:true});
  }else await save("needs_inspection",status,"rollback_site_unhealthy");
@@ -160,7 +159,7 @@ if(status?.stage==="restart_required"){
    await rename(temp,pointer);
    switched=true;
    const previousSha=status?.installedSha||
-    "b4110f83a186dff110faf0f69312397904ad1930";
+    "untracked";
    await save("restart_required",job,null,{
     previousRelease:oldPointer,previousSha,installedSha:previousSha,backupFile:backup
    });
