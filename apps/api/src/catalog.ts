@@ -29,12 +29,12 @@ async function mediaPermission(req:FastifyRequest,id:string){
 export async function catalogRoutes(app:FastifyInstance){
  app.get("/api/media",async req=>{
   const filters=z.object({kind:kinds.optional(),q:z.string().max(100).optional()}).parse(req.query);
-  const r=await query<any>("SELECT m.id,m.kind,m.title,m.description,m.genre,m.price_cents,m.parent_id,m.season_number,m.episode_number,m.created_at,u.display_name AS creator FROM media m JOIN users u ON u.id=m.owner_id WHERE m.visibility='published' AND ($1::text IS NULL OR m.kind=$1) AND ($2::text IS NULL OR m.title ILIKE '%'||$2||'%') ORDER BY m.created_at DESC LIMIT 100",[filters.kind??null,filters.q??null]);
+  const r=await query<any>("SELECT m.id,m.kind,m.title,m.description,m.genre,m.price_cents,m.parent_id,m.season_number,m.episode_number,m.cover_asset_id,m.created_at,u.display_name AS creator FROM media m JOIN users u ON u.id=m.owner_id WHERE m.visibility='published' AND ($1::text IS NULL OR m.kind=$1) AND ($2::text IS NULL OR m.title ILIKE '%'||$2||'%') ORDER BY m.created_at DESC LIMIT 100",[filters.kind??null,filters.q??null]);
   return {items:r.rows};
  });
  app.get("/api/media/mine",async req=>{
   const u=await requireRole(req,["creator","admin"]);
-  return {items:(await query<any>("SELECT id,kind,title,visibility,price_cents,asset_id,asset_id IS NOT NULL AS uploaded,created_at FROM media WHERE owner_id=$1 ORDER BY created_at DESC",[u.id])).rows};
+  return {items:(await query<any>("SELECT id,kind,title,visibility,price_cents,cover_asset_id,asset_id,asset_id IS NOT NULL AS uploaded,created_at FROM media WHERE owner_id=$1 ORDER BY created_at DESC",[u.id])).rows};
  });
  app.post("/api/media",async(req,reply)=>{
   const u=await requireRole(req,["creator","admin"]);const v=data.parse(req.body);
