@@ -1,0 +1,14 @@
+[Unit]
+Description=Creative Soundwerks independent GitHub updater
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# This root-owned unit launches all downloaded/npm code under the site's
+# unprivileged Linux identity; only the fixed service-restart hook runs as root.
+WorkingDirectory=/opt/creative-soundwerks
+ExecStart=/usr/sbin/runuser -u csw -- /usr/bin/env CSW_INSTALL_ROOT=/opt/creative-soundwerks CSW_CONFIG_PATH=/opt/creative-soundwerks/.env CSW_UPDATE_ROOT=/var/lib/creative-soundwerks/updates /usr/bin/node /opt/creative-soundwerks/scripts/self-updater.mjs
+ExecStartPost=/usr/bin/bash -c 'if [ -f /var/lib/creative-soundwerks/updates/restart.flag ]; then rm -f /var/lib/creative-soundwerks/updates/restart.flag; /usr/bin/systemctl restart creative-soundwerks.service; fi'
+UMask=0077
+NoNewPrivileges=true
