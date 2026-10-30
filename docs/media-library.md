@@ -41,3 +41,17 @@ Limit: **1 GiB per uploaded file**. Creator uploads count toward the active memb
 `npm run db:migrate` applies numbered migrations sequentially under a PostgreSQL advisory lock. Migration 002 adds `media_assets` and `media.asset_id` and imports qualifying prior audio/video file references without copying the underlying files.
 
 Keep database and media-directory backups synchronized. Do not expose `MEDIA_ROOT` as a static Nginx alias. Do not treat FFprobe as a malware scanner, a content-rights verifier, or full media transcoding; those are separate production-release workstreams.
+
+## Image artwork and avatars (migration 003)
+
+The centralized `media_assets` table now also permits the `image` type (canonical stored format: WebP). Creators can upload **JPG/JPEG, PNG and WebP** for album art, film posters, TV show artwork and music-video thumbnails. All authenticated users, including listeners, can upload a profile picture to their own account. Images are limited to 10 MB, decoded and re-encoded using Sharp, stripped of original metadata, and resized inside 2400×2400. SVG, GIF, PHP, JSON, HTML, TXT and arbitrary documents remain forbidden.
+
+- `POST /api/library/image`: creator/admin-owned image asset for use as covers.
+- `PUT /api/media/:id/cover`: attach only your own image asset to your release.
+- `GET /api/media/:id/cover`: published release covers are public; draft cover previews require owner/admin.
+- `POST /api/profile/avatar/upload`: all logged-in users can set their own avatar.
+- `PUT /api/profile/avatar`: set an existing image asset owned by the user.
+- `GET /api/profiles/:id/avatar`: public profile photo of a user.
+- An asset in use as a release, cover or avatar cannot be deleted until detached.
+
+System setup: `sudo bash scripts/install-ubuntu.sh` installs FFmpeg and FFprobe automatically. The first-run administrator wizard reports media processing prerequisites. The script is intended for initial Ubuntu/Debian VPS provisioning, not a privileged HTTP request.
