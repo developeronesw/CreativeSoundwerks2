@@ -1,0 +1,38 @@
+# Nginx template for Creative Soundwerks after a successful Let's Encrypt webroot certificate.
+server {
+    listen 80;
+    server_name CSW_DOMAIN_PLACEHOLDER;
+    server_tokens off;
+    location ^~ /.well-known/acme-challenge/ { root CSW_ACME_ROOT_PLACEHOLDER; }
+    location / { return 308 https://$host$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name CSW_DOMAIN_PLACEHOLDER;
+    server_tokens off;
+    ssl_certificate /etc/letsencrypt/live/CSW_DOMAIN_PLACEHOLDER/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/CSW_DOMAIN_PLACEHOLDER/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 1024m;
+    root /opt/creative-soundwerks/apps/web/dist;
+    index index.html;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    location /api/ {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Range $http_range;
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
+    }
+    location ~ /\. { deny all; }
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
