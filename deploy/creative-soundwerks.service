@@ -6,8 +6,11 @@ Wants=network-online.target
 Type=simple
 User=csw
 Group=csw
-WorkingDirectory=/opt/creative-soundwerks/apps/api
-ExecStart=/usr/bin/node /opt/creative-soundwerks/apps/api/dist/index.js
+WorkingDirectory=/opt/creative-soundwerks
+Environment=CSW_INSTALL_ROOT=/opt/creative-soundwerks
+Environment=CSW_CONFIG_PATH=/opt/creative-soundwerks/.env
+Environment=CSW_UPDATE_ROOT=/var/lib/creative-soundwerks/updates
+ExecStart=/usr/bin/node /opt/creative-soundwerks/scripts/update-boot.mjs
 Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=COOKIE_SECURE=true
@@ -17,7 +20,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/creative-soundwerks/media
+ReadWritePaths=/var/lib/creative-soundwerks/media /var/lib/creative-soundwerks/updates
 CapabilityBoundingSet=
 UMask=0077
 [Install]
