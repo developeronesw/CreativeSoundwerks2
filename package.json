@@ -13,6 +13,7 @@
     "dev:web": "npm run dev -w @csw/web",
     "db:migrate": "npm run db:migrate -w @csw/api",
     "build": "npm run build -w @csw/api && npm run build -w @csw/web",
-    "check": "npm run check -w @csw/api && npm run check -w @csw/web"
+    "check": "npm run check -w @csw/api && npm run check -w @csw/web",
+    "setup:system": "bash scripts/install-ubuntu.sh"
   }
 }
