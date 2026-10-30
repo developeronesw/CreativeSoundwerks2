@@ -56,16 +56,71 @@ function AuthPage({mode,onAuth}:{mode:"login"|"join";onAuth:Refresh}){
  <label>Email<input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete={mode==="login"?"current-password":"new-password"} minLength={12} value={password} onChange={e=>setPassword(e.target.value)} required/></label>
  {error&&<p className="error">{error}</p>}<button className="btn-gold full" disabled={busy}>{busy?"Please wait...":mode==="login"?"Sign in":"Create account"}</button><p className="form-footer">{mode==="login"?<>New here? <Link to="/join">Join Creative Soundwerks</Link></>:<>Have an account? <Link to="/login">Sign in</Link></>}</p></form></div>;
 }
-function SetupPage({required,onAuth}:{required:boolean|undefined;onAuth:Refresh}){
- const navigate=useNavigate();const [displayName,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[token,setToken]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+function SetupPage({required,stage,onAuth}:{required:boolean|undefined;stage:string;onAuth:Refresh}){
+ const navigate=useNavigate();
+ const [displayName,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[token,setToken]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const [host,setHost]=useState("127.0.0.1"),[port,setPort]=useState("5432"),[database,setDatabase]=useState("creative_soundwerks"),[dbUser,setDbUser]=useState("csw"),[dbPassword,setDbPassword]=useState("");
+ const [publicUrl,setPublicUrl]=useState(()=>window.location.origin);
  const [preflight,setPreflight]=useState<{ready:boolean;ffmpeg:{ready:boolean;version:string|null};ffprobe:{ready:boolean;version:string|null};node:string}|null>(null);
  useEffect(()=>{api<typeof preflight>("/setup/prerequisites").then(setPreflight).catch(()=>{});},[]);
- async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");try{await api("/setup/initialize",{method:"POST",body:JSON.stringify({displayName,email,password,setupToken:token})});await onAuth();navigate("/admin");}catch(err){setError((err as Error).message);}finally{setBusy(false);}}
+ async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");
+  try{
+   await api("/setup/initialize",{method:"POST",body:JSON.stringify({displayName,email,password,setupToken:token})});
+   await onAuth();navigate("/admin");
+  }catch(err){setError((err as Error).message);}finally{setBusy(false);}
+ }
+ async function configureDatabase(e:FormEvent){e.preventDefault();setBusy(true);setError("");
+  try{
+   await api("/setup/database",{method:"POST",body:JSON.stringify({setupToken:token,host,port:Number(port),database,username:dbUser,password:dbPassword,publicUrl})});
+   setDbPassword("");
+   await onAuth();
+  }catch(err){setError((err as Error).message);}finally{setBusy(false);}
+ }
  if(required===false)return <Navigate to="/admin" replace/>;
- return <div className="setup-layout"><div className="setup-aside"><ShieldCheck size={46}/><div className="eyebrow">FIRST RUN INSTALLER</div><h1>Welcome to your new Creative Soundwerks.</h1><p>Securely initialize your self-hosted platform. The first administrator is created with an environment-only setup token.</p><div className="setup-steps"><span className="now">01 · Create administrator</span><span>02 · Configure memberships</span><span>03 · Connect Stripe</span><span>04 · Upload your first release</span></div></div><form className="auth-form setup-form" onSubmit={submit}><h2>Create first admin account</h2><p>This setup is only available before the first user exists.</p>
- <div className="setup-preflight"><strong>Media processing prerequisites</strong>
- {preflight?<><span>FFmpeg: {preflight.ffmpeg.ready?"Ready":"Missing"} · FFprobe: {preflight.ffprobe.ready?"Ready":"Missing"}</span>
- {!preflight.ready&&<p className="error">On your VPS, run <code>sudo bash scripts/install-ubuntu.sh</code> to install both tools automatically before launching the service.</p>}</>:<span>Checking server prerequisites…</span>}</div><label>Administrator name<input required minLength={2} value={displayName} onChange={e=>setName(e.target.value)}/></label><label>Administrator email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Strong password (12+ characters)<input type="password" required minLength={12} value={password} onChange={e=>setPassword(e.target.value)}/></label><label>Private setup token from server .env<input type="password" required minLength={24} value={token} onChange={e=>setToken(e.target.value)}/></label>{error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Initializing...":"Create Administrator & Continue"} <ArrowRight size={17}/></button><small>Keep the setup token private. Never include it in client source or a public repository.</small></form></div>;
+ const dbStage=stage==="database",broken=stage==="database-error";
+ return <div className="setup-layout">
+ <div className="setup-aside"><ShieldCheck size={46}/><div className="eyebrow">CREATIVE SOUNDWERKS · SECURE INSTALLER</div><h1>Set up your streaming platform.</h1>
+ <p>One guided setup whether you use DevOne Server, CloudPanel, another Node.js hosting panel, or a standalone Ubuntu VPS.</p>
+ <div className="setup-steps">
+  <span className={dbStage?"now":""}>01 · Database connection {dbStage?"— current":!broken?"✓":""}</span>
+  <span className={!dbStage&&!broken?"now":""}>02 · First administrator</span>
+  <span>03 · Configure membership prices & Stripe</span>
+  <span>04 · Publish music, movies and television</span>
+ </div>
+ <p className="setup-security-note">Installer credentials stay in the server's private configuration. Nobody can configure another installation without its secret setup token.</p></div>
+ {dbStage?
+ <form className="auth-form setup-form" onSubmit={configureDatabase}>
+  <h2>Connect PostgreSQL</h2>
+  <p>Use the database your hosting panel created. Creative Soundwerks will validate the connection and install its tables.</p>
+  <div className="setup-preflight"><strong>Hosting requirements</strong><span>Node.js {preflight?.node||"checking"} · HTTPS · PostgreSQL</span>
+  <span>FFmpeg: {preflight?.ffmpeg.ready?"Ready":"Not detected"} · FFprobe: {preflight?.ffprobe.ready?"Ready":"Not detected"}</span>
+  {!preflight?.ready&&<small>For audio/video uploads, ask your hosting provider to install FFmpeg/FFprobe, or use the VPS installer. The browser cannot install system packages.</small>}</div>
+  <div className="setup-field-grid">
+   <label>Database host<input value={host} onChange={e=>setHost(e.target.value)} required/></label>
+   <label>Database port<input type="number" min="1" max="65535" value={port} onChange={e=>setPort(e.target.value)} required/></label>
+  </div>
+  <label>Database name<input value={database} onChange={e=>setDatabase(e.target.value)} required/></label>
+  <label>Database username<input value={dbUser} onChange={e=>setDbUser(e.target.value)} required/></label>
+  <label>Database password<input type="password" autoComplete="off" value={dbPassword} onChange={e=>setDbPassword(e.target.value)} required/></label>
+  <label>Public website URL (HTTPS)<input type="url" value={publicUrl} onChange={e=>setPublicUrl(e.target.value)} required/></label>
+  <label>Private installer token<input type="password" autoComplete="off" minLength={24} value={token} onChange={e=>setToken(e.target.value)} required/></label>
+  {error&&<p className="error">{error}</p>}
+  <button disabled={busy} className="btn-gold full">{busy?"Testing database...":"Connect & Install Database"} <ArrowRight size={17}/></button>
+  <small>Get the token from your hosting setup command, not from a public webpage. An empty PostgreSQL database is required.</small>
+ </form>
+ :broken?<div className="surface-card"><h2>Database configuration needs attention</h2><p>The app found database settings but could not load its users table. Check your panel's database permissions and run the database migrations before proceeding.</p><p className="muted">For a VPS install, review the service logs. For panel hosting, verify the PostgreSQL credentials configured in the application environment.</p></div>:
+ <form className="auth-form setup-form" onSubmit={submit}>
+  <h2>Create first administrator</h2><p>Database configured successfully. Create the owner account to lock the installer.</p>
+  <div className="setup-preflight"><strong>Media processing prerequisites</strong>
+  {preflight?<><span>FFmpeg: {preflight.ffmpeg.ready?"Ready":"Missing"} · FFprobe: {preflight.ffprobe.ready?"Ready":"Missing"}</span>
+  {!preflight.ready&&<p>Install FFmpeg and FFprobe through your hosting panel or hosting provider before uploading media.</p>}</>:<span>Checking server prerequisites…</span>}</div>
+  <label>Administrator name<input required minLength={2} value={displayName} onChange={e=>setName(e.target.value)}/></label>
+  <label>Administrator email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label>
+  <label>Strong password (12+ characters)<input type="password" required minLength={12} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}/></label>
+  <label>Private installer token<input type="password" autoComplete="off" required minLength={24} value={token} onChange={e=>setToken(e.target.value)}/></label>
+  {error&&<p className="error">{error}</p>}<button disabled={busy} className="btn-gold full">{busy?"Initializing...":"Create Administrator & Continue"} <ArrowRight size={17}/></button>
+  <small>Installer access becomes unavailable once the first administrator exists.</small>
+ </form>}</div>;
 }
 function UploadPage({user,refresh}:{user:User|null;refresh:Refresh}){
  const [kind,setKind]=useState("track"),[title,setTitle]=useState(""),[description,setDescription]=useState(""),[genre,setGenre]=useState(""),[price,setPrice]=useState("0"),[file,setFile]=useState<File|null>(null),[selected,setSelected]=useState(""),[coverSelected,setCoverSelected]=useState(""),[coverFile,setCoverFile]=useState<File|null>(null),[library,setLibrary]=useState<LibraryAsset[]>([]),[mine,setMine]=useState<Media[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -150,14 +205,14 @@ function AdminPage({user,plans,refresh}:{user:User|null;plans:Plan[];refresh:Ref
  <div className="creator-layout"><div className="surface-card"><h2>Membership pricing</h2><p>Change new-signup pricing in USD and the number of titles creators can publish.</p>{plans.map(x=><div className="row-entry" key={x.id}><div><strong>{x.name}</strong><small>{x.audience} · {money(x.amount_cents)}/month · {x.upload_limit} uploads</small></div><button className="btn-outline" onClick={()=>edit(x)}>Edit</button></div>)}</div><div className="surface-card"><h2>{p?"Edit "+p.name:"Platform configuration"}</h2>{p?<form className="edit-form" onSubmit={save}><label>Monthly price (USD)<input type="number" min={0} step=".01" value={price} onChange={e=>setPrice(e.target.value)} required/></label><label>Creator upload limit<input type="number" min={0} step={1} value={limit} onChange={e=>setLimit(e.target.value)} required/></label>{error&&<p className="error">{error}</p>}{saved&&<p className="success">{saved}</p>}<button className="btn-gold">Save membership</button></form>:<div className="status-list"><span><ShieldCheck size={18}/> First-run administrator initialized</span><span><ServerCog size={18}/> PostgreSQL database</span><span><CreditCard size={18}/> Stripe configured through server secrets</span><span><UploadCloud size={18}/> Local private media filesystem</span><p className="muted">Complete the production deployment checklist in README.md.</p></div>}</div></div></>;
 }
 export default function App(){
- const [user,setUser]=useState<User|null>(null),[plans,setPlans]=useState<Plan[]>([]),[items,setItems]=useState<Media[]>([]),[setup,setSetup]=useState<boolean|undefined>(),[status,setStatus]=useState("");
+ const [user,setUser]=useState<User|null>(null),[plans,setPlans]=useState<Plan[]>([]),[items,setItems]=useState<Media[]>([]),[setup,setSetup]=useState<boolean|undefined>(),[setupStage,setSetupStage]=useState("admin"),[status,setStatus]=useState("");
  const location=useLocation(),navigate=useNavigate();
  async function refresh(){
-  const results=await Promise.allSettled([api<{user:User|null}>("/me"),api<{items:Plan[]}>("/plans"),api<{items:Media[]}>("/media"),api<{required:boolean}>("/setup/status")]);
+  const results=await Promise.allSettled([api<{user:User|null}>("/me"),api<{items:Plan[]}>("/plans"),api<{items:Media[]}>("/media"),api<{required:boolean;stage:string}>("/setup/status")]);
   if(results[0].status==="fulfilled")setUser(results[0].value.user);
   if(results[1].status==="fulfilled")setPlans(results[1].value.items);
   if(results[2].status==="fulfilled")setItems(results[2].value.items);
-  if(results[3].status==="fulfilled")setSetup(results[3].value.required);
+  if(results[3].status==="fulfilled"){setSetup(results[3].value.required);setSetupStage(results[3].value.stage);}
   if(results.every(r=>r.status==="rejected"))setStatus("The API is unavailable. Check the local PostgreSQL database and backend server.");
  }
  useEffect(()=>{refresh();},[]);
@@ -171,7 +226,7 @@ export default function App(){
  <Route path="/creators" element={<CreatorPage/>}/>
  <Route path="/join" element={<AuthPage mode="join" onAuth={refresh}/>}/>
  <Route path="/login" element={<AuthPage mode="login" onAuth={refresh}/>}/>
- <Route path="/setup" element={<SetupPage required={setup} onAuth={refresh}/>}/>
+ <Route path="/setup" element={<SetupPage required={setup} stage={setupStage} onAuth={refresh}/>}/>
  <Route path="/upload" element={<UploadPage user={user} refresh={refresh}/>}/>
  <Route path="/library" element={<MediaLibrary user={user}/>}/>
  <Route path="/profile" element={<Profile user={user} onUpdated={refresh}/>}/>
