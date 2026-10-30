@@ -36,7 +36,7 @@ export function allowedExtension(name:string){
  const ext=extname(name).toLowerCase();
  return formats[ext] ? ext : null;
 }
-export type Asset={id:string;owner_id:string;original_name:string;media_type:"audio"|"video";mime_type:string;storage_path:string;size_bytes:number;created_at:string;extension:string};
+export type Asset={id:string;owner_id:string;original_name:string;media_type:"audio"|"video"|"image";mime_type:string;storage_path:string;size_bytes:number;created_at:string;extension:string};
 export async function uploadAsset(req:FastifyRequest,owner:Actor,expectedKind?:"audio"|"video"){
  const multipart=await req.file({limits:{files:1,fileSize:MAX_FILE_BYTES}});
  if(!multipart)throw reject("Select an audio or video file",400);
@@ -147,8 +147,8 @@ export async function assetRoutes(app:FastifyInstance){
   const id=z.uuid().parse((req.params as {id:string}).id);
   const asset=await getOwnedAsset(id,u);
   // A single conditional DELETE prevents a check-then-delete race with attaching files.
-  const removed=await query("DELETE FROM media_assets a WHERE a.id=$1 AND a.owner_id=$2 AND NOT EXISTS (SELECT 1 FROM media m WHERE m.asset_id=a.id) RETURNING a.storage_path",[id,asset.owner_id]);
-  if(!removed.rowCount)return reply.code(409).send({error:"Asset is in use by a release; detach it before deleting"});
+  const removed=await query("DELETE FROM media_assets a WHERE a.id=$1 AND a.owner_id=$2 AND NOT EXISTS (SELECT 1 FROM media m WHERE m.asset_id=a.id OR m.cover_asset_id=a.id) AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_asset_id=a.id) RETURNING a.storage_path",[id,asset.owner_id]);
+  if(!removed.rowCount)return reply.code(409).send({error:"Asset is in use by a release, cover or profile; detach it before deleting"});
   await rm(privatePath(removed.rows[0].storage_path),{force:true});
   return {ok:true};
  });
