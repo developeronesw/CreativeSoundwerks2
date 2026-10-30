@@ -39,6 +39,14 @@ jobs:
         run: |
           bash -n install.sh
           bash -n scripts/install-ubuntu.sh
+      - name: Validate independent updater service and launcher
+        run: |
+          node --check scripts/update-boot.mjs
+          node --check scripts/self-updater.mjs
+          bash -n scripts/enable-independent-updater.sh
+          grep -q 'Restart=on-failure' deploy/creative-soundwerks.service
+          grep -q 'CSW_UPDATE_ROOT' deploy/creative-soundwerks-updater.service
+          grep -q 'ExecStartPost' deploy/creative-soundwerks-updater.service
       - run: npm run check
       - run: npm run build
       - name: Validate managed panel preparation
