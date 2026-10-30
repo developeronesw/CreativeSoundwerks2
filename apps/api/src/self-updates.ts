@@ -105,6 +105,9 @@ export async function selfUpdateRoutes(app:FastifyInstance){
    throw e;
   });
   try{await fd.writeFile(JSON.stringify(job));}finally{await fd.close();}
+  await writeFile(join(dir,"status.json"),JSON.stringify({stage:"queued",jobId:job.id,
+   targetSha:job.targetSha,installedSha:await installedRevision(),
+   error:null,updatedAt:new Date().toISOString()}),{mode:0o600});
   return reply.code(202).send({accepted:true,jobId:job.id,targetSha:job.targetSha});
  });
 }
