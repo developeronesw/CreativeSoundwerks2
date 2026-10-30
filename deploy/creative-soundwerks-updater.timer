@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Creative Soundwerks approved update requests independently
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=30s
+Unit=creative-soundwerks-updater.service
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
