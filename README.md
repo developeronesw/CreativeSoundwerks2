@@ -4,6 +4,22 @@
 
 The new Creative Soundwerks is a streaming and creator-commerce foundation for music, movies, TV, episodes, short films, music videos, and advertisements. Visual contract: ivory / champagne gold / midnight charcoal, with a persistent audio player and floating mini-video player.
 
+## WordPress-style installation — two supported modes
+
+**DevOne Server, CloudPanel and any compatible Node.js hosting panel:** Download **Code → Download ZIP**, upload and extract it into a private Node application folder, then use your panel's deployment/build command:
+
+```bash
+npm install --include=dev
+npm run check
+npm run build
+npm run setup:panel
+npm start
+```
+
+Set the Node **startup file** to `apps/api/dist/index.js` (or command `npm start`). The Node process serves **both the React site and API on the same port**; point your panel's HTTPS reverse proxy to this port. `npm run setup:panel` produces a secure private installer token, and `https://your-domain/setup` guides you through PostgreSQL connection and first-admin creation. The panel supplies the PostgreSQL database, HTTPS/proxy and Node.js runtime; FFmpeg/FFprobe must be installed by the host for playable media uploads. **No root installer and no DevOne software are required.** See [panel hosting instructions](docs/panel-hosting.md).
+
+**Fresh, unmanaged Ubuntu/Debian VPS:** Use the independent `sudo bash install.sh --domain ... --email ...` method below to provision Node.js, PostgreSQL, FFmpeg, Nginx, HTTPS and the service automatically.
+
 ## Install directly from GitHub Download ZIP
 
 Creative Soundwerks 2 is **standalone Node.js software** and does not need DevOne Server Software. On a fresh Ubuntu 24.04/Debian 12 VPS, download this repository using **Code → Download ZIP**, upload it via SSH/SFTP or your hosting file manager, extract it, and run:
