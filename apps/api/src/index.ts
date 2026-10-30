@@ -9,6 +9,7 @@ import { query } from "./db.js";
 import { authRoutes, requireRole } from "./auth.js";
 import { billingRoutes } from "./billing.js";
 import { catalogRoutes } from "./catalog.js";
+import { assetRoutes } from "./assets.js";
 
 const app=Fastify({logger:true,bodyLimit:1024*1024,trustProxy:false});
 await app.register(cookie);
@@ -33,6 +34,7 @@ app.get("/api/health",async()=>{await query("SELECT 1");return {ok:true,service:
 await authRoutes(app);
 await billingRoutes(app);
 await catalogRoutes(app);
+await assetRoutes(app);
 app.get("/api/admin/stats",async req=>{
  await requireRole(req,["admin"]);
  const r=await query<any>("SELECT (SELECT count(*) FROM users)::int AS users,(SELECT count(*) FROM media)::int AS media,(SELECT count(*) FROM orders WHERE status='paid')::int AS orders,(SELECT count(*) FROM subscriptions WHERE status='active')::int AS subscriptions");
