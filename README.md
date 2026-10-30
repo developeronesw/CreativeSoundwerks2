@@ -4,6 +4,19 @@
 
 The new Creative Soundwerks is a streaming and creator-commerce foundation for music, movies, TV, episodes, short films, music videos, and advertisements. Visual contract: ivory / champagne gold / midnight charcoal, with a persistent audio player and floating mini-video player.
 
+## Upload-and-extract ZIP installer
+
+Creative Soundwerks 2 can be installed from a self-contained, compiled ZIP on a fresh Ubuntu/Debian VPS. Download the GitHub Actions artifact `creative-soundwerks2-install`, extract its inner `creative-soundwerks2-install.zip`, and use:
+
+```bash
+mkdir -p ~/csw-install && cd ~/csw-install
+unzip /path/to/creative-soundwerks2-install.zip
+bash install.sh --check
+sudo bash install.sh --domain media.example.com --email you@example.com
+```
+
+The installer configures Node.js, PostgreSQL, FFmpeg/FFprobe, Nginx/Let's Encrypt HTTPS and the service. Finish first-admin setup at `https://media.example.com/setup`. **Extracting alone does not start Node.js**; the VPS installer command is required. It refuses existing installations. See [detailed ZIP installation steps](docs/install-from-zip.md).
+
 ## Development setup
 
 1. Install Node.js 22.12+, PostgreSQL 16+, and FFmpeg (for future transcoding).
