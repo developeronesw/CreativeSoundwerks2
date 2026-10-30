@@ -37,7 +37,13 @@ async function startSession(reply: FastifyReply, userId: string) {
  reply.setCookie("csw_session",token,{httpOnly:true,secure,sameSite:"lax",path:"/",maxAge:SESSION_AGE});
 }
 export async function authRoutes(app: FastifyInstance) {
- app.get("/api/setup/status",async()=>({required:(await query("SELECT id FROM users LIMIT 1")).rowCount===0}));
+ app.get("/api/setup/status",async()=>{
+  if(!process.env.DATABASE_URL)return {required:true,stage:"database",databaseConfigured:false};
+  try{
+   const installed=(await query("SELECT id FROM users LIMIT 1")).rowCount!==0;
+   return {required:!installed,stage:installed?"complete":"admin",databaseConfigured:true};
+  }catch{return {required:true,stage:"database-error",databaseConfigured:true};}
+ });
  app.post("/api/setup/initialize",{config:{rateLimit:{max:5,timeWindow:"1 minute"}}},async(req,reply)=>{
   const input = credentials.extend({displayName:z.string().min(2).max(90),setupToken:z.string().min(24)}).parse(req.body);
   if (!process.env.CSW_SETUP_TOKEN || process.env.CSW_SETUP_TOKEN.length < 24 || input.setupToken !== process.env.CSW_SETUP_TOKEN) {
