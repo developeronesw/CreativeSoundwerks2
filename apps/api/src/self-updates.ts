@@ -10,7 +10,7 @@ import {randomUUID} from "node:crypto";
 
 const repo="developeronesw/CreativeSoundwerks2";
 const sha=/^[a-f0-9]{40}$/;
-const initial="b4110f83a186dff110faf0f69312397904ad1930";
+const initial="untracked";
 const config=resolve(process.env.CSW_CONFIG_PATH||fileURLToPath(new URL("../../../.env",import.meta.url)));
 export function updateHome(){
  return resolve(process.env.CSW_UPDATE_ROOT||join(dirname(config),"csw-updates"));
