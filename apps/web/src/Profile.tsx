@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Camera, ShieldCheck, UserRound } from "lucide-react";
-import { api, type User, imageExtensions } from "./api";
+import { type User, imageExtensions } from "./api";
 
 export default function Profile({user,onUpdated}:{user:User|null;onUpdated:()=>Promise<void>}){
  const [file,setFile]=useState<File|null>(null);
