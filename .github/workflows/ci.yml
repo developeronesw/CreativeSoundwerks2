@@ -39,12 +39,12 @@ jobs:
         run: |
           bash -n install.sh
           bash -n scripts/install-ubuntu.sh
+      - run: npm run check
+      - run: npm run build
       - name: Validate managed panel preparation
         run: |
           node --check scripts/prepare-panel.mjs
           npm run setup:panel:check
-      - run: npm run check
-      - run: npm run build
       - name: Ensure FFmpeg and FFprobe are available
         run: |
           if ! command -v ffprobe >/dev/null || ! command -v ffmpeg >/dev/null; then
