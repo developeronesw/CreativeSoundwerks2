@@ -8,6 +8,7 @@ umask 077
 SOURCE="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 TARGET="/opt/creative-soundwerks"
 MEDIA_DIR="/var/lib/creative-soundwerks/media"
+UPDATE_DIR="/var/lib/creative-soundwerks/updates"
 NGINX_FILE="/etc/nginx/sites-available/creative-soundwerks"
 ACME_ROOT="/var/www/creative-soundwerks-acme"
 DOMAIN=""
@@ -52,7 +53,9 @@ for file in package.json .env.example \
  apps/api/sql/001_init.sql apps/api/sql/002_media_library.sql \
  apps/api/sql/003_images.sql apps/web/package.json \
  apps/web/index.html apps/web/src/main.tsx \
- scripts/install-ubuntu.sh deploy/nginx-https.conf.template \
+ scripts/install-ubuntu.sh scripts/self-updater.mjs scripts/update-boot.mjs \
+ deploy/creative-soundwerks-updater.service deploy/creative-soundwerks-updater.timer \
+ deploy/nginx-https.conf.template \
  deploy/creative-soundwerks.service; do
  [[ -f "$SOURCE/$file" ]] || die "Incomplete GitHub source ZIP: missing $file"
 done
@@ -111,6 +114,7 @@ chmod -R o-w "$TARGET"
 DB_PASSWORD="$(openssl rand -hex 32)"
 SETUP_TOKEN="$(openssl rand -hex 32)"
 install -d -o csw -g csw -m 0700 "$MEDIA_DIR"
+install -d -o csw -g csw -m 0700 "$UPDATE_DIR"
 # Password and token are hex characters only; no untrusted shell/SQL interpolation.
 runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c \
  "CREATE ROLE csw LOGIN PASSWORD '$DB_PASSWORD' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION"
@@ -124,6 +128,8 @@ CSW_SETUP_TOKEN=$SETUP_TOKEN
 COOKIE_SECURE=true
 PUBLIC_APP_URL=https://$DOMAIN
 MEDIA_ROOT=$MEDIA_DIR
+CSW_UPDATE_ROOT=$UPDATE_DIR
+CSW_INSTALL_ROOT=$TARGET
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 ENV
@@ -166,8 +172,11 @@ if systemctl list-unit-files --type=timer | grep -q '^certbot.timer'; then
  systemctl enable --now certbot.timer
 fi
 install -m 0644 "$TARGET/deploy/creative-soundwerks.service" /etc/systemd/system/creative-soundwerks.service
+install -m 0644 "$TARGET/deploy/creative-soundwerks-updater.service" /etc/systemd/system/creative-soundwerks-updater.service
+install -m 0644 "$TARGET/deploy/creative-soundwerks-updater.timer" /etc/systemd/system/creative-soundwerks-updater.timer
 systemctl daemon-reload
 systemctl enable --now creative-soundwerks
+systemctl enable --now creative-soundwerks-updater.timer
 info "Verifying local API health."
 healthy=false
 for _ in $(seq 1 30); do
