@@ -12,6 +12,10 @@ import { catalogRoutes } from "./catalog.js";
 import { assetRoutes } from "./assets.js";
 import { imageRoutes } from "./images.js";
 import { prerequisiteRoutes } from "./prerequisites.js";
+import { managedSetupRoutes } from "./managed-setup.js";
+import fastifyStatic from "@fastify/static";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const app=Fastify({logger:true,bodyLimit:1024*1024,trustProxy:false});
 await app.register(cookie);
@@ -39,6 +43,7 @@ await catalogRoutes(app);
 await assetRoutes(app);
 await imageRoutes(app);
 await prerequisiteRoutes(app);
+await managedSetupRoutes(app);
 app.get("/api/admin/stats",async req=>{
  await requireRole(req,["admin"]);
  const r=await query<any>("SELECT (SELECT count(*) FROM users)::int AS users,(SELECT count(*) FROM media)::int AS media,(SELECT count(*) FROM orders WHERE status='paid')::int AS orders,(SELECT count(*) FROM subscriptions WHERE status='active')::int AS subscriptions");
@@ -67,6 +72,18 @@ app.patch("/api/ads/:id",async(req,reply)=>{
  return {ok:true};
 });
 
+// Hosting panels need only ONE Node.js app entry point. Serve the compiled
+// React SPA from Fastify itself; never expose the project root or private .env.
+const webRoot=fileURLToPath(new URL("../../web/dist/",import.meta.url));
+if(existsSync(webRoot)){
+ await app.register(fastifyStatic,{root:webRoot,prefix:"/",decorateReply:true});
+ app.setNotFoundHandler((req,reply)=>{
+  if(req.method==="GET" && !req.url.startsWith("/api/") && !req.url.split("?")[0].includes(".")){
+   return reply.type("text/html").header("Cache-Control","no-store").sendFile("index.html");
+  }
+  return reply.code(404).send({error:"Not found"});
+ });
+}
 const port=Number(process.env.PORT||8787);
 const host=process.env.HOST||"127.0.0.1";
 await app.listen({host,port});
