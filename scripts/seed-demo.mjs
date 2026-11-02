@@ -14,7 +14,7 @@ const configPath=process.env.CSW_CONFIG_PATH||join(root,".env");
 config({path:configPath});
 const connectionString=process.env.DATABASE_URL;
 if(!connectionString)throw Error("Configure DATABASE_URL and finish the administrator wizard before adding samples.");
-const mediaRoot=resolve(process.env.MEDIA_ROOT||join(root,"storage/private"));
+// Match the API workspace fallback (npm -w @csw/api runs from apps/api).\nconst mediaRoot=resolve(process.env.MEDIA_ROOT||join(root,"apps/api/storage/private"));
 const fixed=(name)=>"00000000-0000-4000-8000-"+name;
 const album=fixed("00000000d100");
 const covers=[
