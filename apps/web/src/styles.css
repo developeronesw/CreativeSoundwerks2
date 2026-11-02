@@ -122,3 +122,6 @@
  .progress{grid-template-columns:33px minmax(0,1fr) 33px;gap:6px}
  .transport{gap:13px}
 }
+
+.player-queue-mobile{display:none}
+@media(max-width:630px){.player-queue-mobile{display:grid}.player-track{padding-right:38px}.player-extra .player-queue-toggle{display:none}}
