@@ -30,6 +30,7 @@ test("admin bootstrap and creator isolation",async()=>{
  assert.ok(!stranger.body.items.some(x=>x.id===title.body.id));
  assert.equal((await call("/media/"+title.body.id,"PATCH",{title:"Stolen"},b.cookie)).status,404);
  assert.equal((await call("/media/"+title.body.id+"/stream","GET",undefined,b.cookie)).status,404);
+ assert.equal((await call("/media/"+title.body.id+"/queue","GET",undefined,b.cookie)).status,404,"Private draft titles must not leak through playback queues");
  assert.equal((await call("/cart","POST",{mediaId:title.body.id},b.cookie)).status,400);
  assert.equal((await call("/admin/plans","GET",undefined,b.cookie)).status,403);
 
