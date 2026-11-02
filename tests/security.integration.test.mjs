@@ -38,6 +38,10 @@ test("admin bootstrap and creator isolation",async()=>{
  assert.equal((await call("/admin/updates/apply","POST",{targetSha:"a".repeat(40),password:"anything",confirmed:true})).status,401);
  assert.equal((await call("/admin/updates/apply","POST",{targetSha:"a".repeat(40),password:"anything",confirmed:true},b.cookie,"http://localhost:5173")).status,403);
  assert.equal((await call("/admin/updates/apply","POST",{targetSha:"a".repeat(40),password:"AdminPasswordLong!23",confirmed:true},setup.cookie)).status,403);
+ assert.equal((await call("/admin/demo/seed","POST",{confirmed:true,password:"anything"})).status,401);
+ assert.equal((await call("/admin/demo/seed","POST",{confirmed:true,password:"anything"},b.cookie,"http://localhost:5173")).status,403);
+ assert.equal((await call("/admin/demo/seed","POST",{confirmed:true,password:"AdminPasswordLong!23"},setup.cookie)).status,403);
+
 
  const plans=await call("/plans"),p=plans.body.items.find(x=>x.name==="Pro Creator");
  assert.ok(p);
