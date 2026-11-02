@@ -65,3 +65,60 @@
 .self-update-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
 .self-update-actions button{display:flex;align-items:center;gap:8px}
 @media(max-width:600px){.self-update-revisions{grid-template-columns:1fr}}
+
+
+/* Responsive media player: independent mobile composition. Never squeeze the
+   desktop three-column transport into the phone viewport. */
+.player-bar,.player-bar *{box-sizing:border-box}
+.player-track,.player-main,.player-extra,.progress{min-width:0}
+.player-main{min-width:0}
+.progress input[type="range"]{display:block;min-width:0;max-width:100%;width:100%;margin:0;touch-action:pan-y}
+.player-track strong,.player-track small{max-width:100%}
+.transport button{cursor:pointer;touch-action:manipulation}
+.transport button:disabled{opacity:.35;cursor:not-allowed}
+.player-error{font-size:11px;line-height:1.3;color:#f6cdbb;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.player-queue-toggle{border:0;background:transparent;color:#fff;display:grid;place-items:center;min-width:32px;min-height:32px;cursor:pointer}
+.player-queue{position:absolute;right:16px;bottom:calc(100% + 10px);width:min(330px,calc(100vw - 24px));max-height:min(52vh,370px);overflow:auto;padding:10px;border:1px solid #9c804e;border-radius:14px;background:#1e232b;box-shadow:0 12px 35px #0008}
+.player-queue-header{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;color:#f8ead3}
+.player-queue-header button,.player-queue-item{background:none;color:inherit;border:0;cursor:pointer}
+.player-queue-item{width:100%;text-align:left;display:flex;gap:9px;align-items:center;padding:9px 11px;border-radius:8px}
+.player-queue-item.active{background:#b68a4038;color:#f2d393}
+.player-queue-item span{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-queue-item:hover{background:#ffffff14}
+.player-status{position:absolute;right:20px;bottom:calc(100% + 10px);max-width:min(390px,calc(100vw - 28px));padding:9px 12px;border-radius:9px;background:#5c2c25;color:#fff1e8;font-size:12px;box-shadow:0 7px 30px #0005}
+@media(max-width:630px){
+ .workspace{padding-bottom:calc(164px + env(safe-area-inset-bottom,0px))}
+ .player-bar{
+  width:100%;max-width:100vw;height:auto;min-height:134px;
+  padding:10px max(14px,env(safe-area-inset-right,0px))
+    calc(12px + env(safe-area-inset-bottom,0px))
+    max(14px,env(safe-area-inset-left,0px));
+  display:grid;grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto auto;
+  grid-template-areas:"player-track" "player-transport" "player-progress";
+  gap:7px;align-content:center;overflow:visible;
+ }
+ .player-track{grid-area:player-track;gap:10px;width:100%;max-width:100%;min-width:0}
+ .player-track>div:last-child{flex:1;min-width:0}
+ .player-track strong{font-size:12px;line-height:1.25}
+ .player-track small{font-size:11px;margin-top:3px}
+ .cover-sm{width:36px;height:36px;flex:none}
+ .player-main{display:contents}
+ .transport{grid-area:player-transport;display:flex;justify-content:center;align-items:center;gap:22px;width:100%;min-width:0}
+ .transport button{display:grid;place-items:center;min-width:38px;min-height:38px;padding:6px}
+ .transport .play-toggle{width:44px;height:44px;min-height:44px;border-radius:50%;padding:0}
+ .progress{grid-area:player-progress;display:grid;grid-template-columns:36px minmax(0,1fr) 36px;align-items:center;gap:9px;width:100%;font-size:11px;line-height:1}
+ .progress span{width:36px;min-width:0;font-variant-numeric:tabular-nums;white-space:nowrap}
+ .progress span:last-child{text-align:right}
+ .progress input[type="range"]{height:20px;padding:0;accent-color:#d3ab61}
+ .player-extra{display:none}
+ .player-queue-toggle{position:absolute;top:12px;right:12px}
+ .player-queue{right:9px;bottom:calc(100% + 6px)}
+ .player-status{left:10px;right:10px;bottom:calc(100% + 6px)}
+ .floating-video{bottom:calc(160px + env(safe-area-inset-bottom,0px))}
+}
+@media(max-width:360px){
+ .player-bar{padding-left:10px;padding-right:10px}
+ .progress{grid-template-columns:33px minmax(0,1fr) 33px;gap:6px}
+ .transport{gap:13px}
+}
