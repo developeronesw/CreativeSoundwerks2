@@ -4,6 +4,12 @@
 
 The new Creative Soundwerks is a streaming and creator-commerce foundation for music, movies, TV, episodes, short films, music videos, and advertisements. Visual contract: ivory / champagne gold / midnight charcoal, with a persistent audio player and floating mini-video player.
 
+## Mobile playback and optional original demo catalog
+
+Creative Soundwerks' bottom player now has a dedicated phone layout: track details, centered transport controls and a full-width seek bar with safe-area padding. Album and television playback queues resolve actual playable child media and respect streaming entitlements; previous/next navigate a queue instead of behaving like a desktop time-skip placeholder.
+
+After the first administrator is created, open **Administrator → Demo audio and videos** and explicitly approve demo generation to populate a fresh testing instance with two synthetic audio tracks, two original test-pattern MP4 videos, sample cover artwork and a playable album. Nothing is auto-seeded on production. Alternatively run `npm run demo:seed` as the app's Linux user. [Player and demo media QA guide](docs/demo-media-and-player.md).
+
 ## Official self-updates — no DevOne dependency
 
 Creative Soundwerks has its own **Administrator → Software updates** panel. It checks the official `main` branch and requires the exact GitHub CI run to pass, then requests a new build from a separate private updater service. The worker stages code, snapshots PostgreSQL, migrates the database, activates the new revision, and attempts automatic rollback if health verification fails. Private media and server credentials are retained. **Updates must be explicitly approved by the Creative Soundwerks administrator.**
