@@ -14,6 +14,7 @@ import { imageRoutes } from "./images.js";
 import { prerequisiteRoutes } from "./prerequisites.js";
 import { managedSetupRoutes } from "./managed-setup.js";
 import {selfUpdateRoutes,updateHeartbeat,updateHome} from "./self-updates.js";
+import {demoRoutes} from "./demo.js";
 import {access} from "node:fs/promises";
 import {join} from "node:path";
 import fastifyStatic from "@fastify/static";
@@ -63,6 +64,7 @@ await imageRoutes(app);
 await prerequisiteRoutes(app);
 await managedSetupRoutes(app);
 await selfUpdateRoutes(app);
+await demoRoutes(app);
 app.get("/api/admin/stats",async req=>{
  await requireRole(req,["admin"]);
  const r=await query<any>("SELECT (SELECT count(*) FROM users)::int AS users,(SELECT count(*) FROM media)::int AS media,(SELECT count(*) FROM orders WHERE status='paid')::int AS orders,(SELECT count(*) FROM subscriptions WHERE status='active')::int AS subscriptions");
