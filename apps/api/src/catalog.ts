@@ -32,6 +32,35 @@ export async function catalogRoutes(app:FastifyInstance){
   const r=await query<any>("SELECT m.id,m.kind,m.title,m.description,m.genre,m.price_cents,m.parent_id,m.season_number,m.episode_number,m.cover_asset_id,m.created_at,u.display_name AS creator FROM media m JOIN users u ON u.id=m.owner_id WHERE m.visibility='published' AND ($1::text IS NULL OR m.kind=$1) AND ($2::text IS NULL OR m.title ILIKE '%'||$2||'%') ORDER BY m.created_at DESC LIMIT 100",[filters.kind??null,filters.q??null]);
   return {items:r.rows};
  });
+ // Playable queue: albums and shows resolve to their ordered children, rather
+ // than sending the collection ID to the private stream endpoint (which 404s).
+ // Filter each queue entry by publication and purchase entitlement.
+ app.get("/api/media/:id/queue",async req=>{
+  const id=z.uuid().parse((req.params as {id:string}).id);
+  const selected=await mediaPermission(req,id);
+  const user=await actor(req);
+  const privileged=user?.role==="admin"||user?.id===selected.owner_id;
+  const collection=["album","tv_show"].includes(selected.kind);
+  const parent=collection?selected.id:selected.parent_id;
+  if(parent&&!collection)await mediaPermission(req,parent);
+  const fields="SELECT m.id,m.kind,m.title,m.genre,m.price_cents,m.parent_id,m.cover_asset_id,"+
+    "u.display_name AS creator FROM media m JOIN users u ON u.id=m.owner_id ";
+  const playable="m.asset_id IS NOT NULL AND m.kind NOT IN ('album','tv_show') "+
+    "AND (m.visibility='published' OR m.owner_id=$2 OR $3::boolean) "+
+    "AND (m.price_cents=0 OR m.owner_id=$2 OR $3::boolean OR "+
+    "EXISTS(SELECT 1 FROM purchases p WHERE p.media_id=m.id AND p.user_id=$2))";
+  const rows=parent
+   ?await query<any>(fields+"WHERE m.parent_id=$1 AND "+playable+
+     " ORDER BY COALESCE(m.season_number,0),COALESCE(m.episode_number,0),m.created_at,m.id LIMIT 100",
+     [parent,user?.id??null,privileged])
+   :await query<any>(fields+"WHERE m.id=$1 AND "+playable+" LIMIT 1",
+     [id,user?.id??null,privileged]);
+  const items=rows.rows;
+  const startIndex=collection?0:items.findIndex((m:any)=>m.id===id);
+  if(!items.length||startIndex<0)throw Object.assign(
+   new Error("No playable media available in this release"),{statusCode:404});
+  return {items,startIndex};
+ });
  app.get("/api/media/mine",async req=>{
   const u=await requireRole(req,["creator","admin"]);
   return {items:(await query<any>("SELECT id,kind,title,visibility,price_cents,cover_asset_id,asset_id,asset_id IS NOT NULL AS uploaded,created_at FROM media WHERE owner_id=$1 ORDER BY created_at DESC",[u.id])).rows};
