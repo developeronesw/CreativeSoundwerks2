@@ -17,6 +17,7 @@
     "setup:system": "bash scripts/install-ubuntu.sh",
     "setup:panel": "node scripts/prepare-panel.mjs",
     "setup:panel:check": "node scripts/prepare-panel.mjs --check",
-    "start": "npm run start -w @csw/api"
+    "start": "npm run start -w @csw/api",
+    "demo:seed": "node scripts/seed-demo.mjs"
   }
 }
