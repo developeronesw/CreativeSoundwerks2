@@ -96,6 +96,12 @@ jobs:
           exit 1
       - name: Verify authorization and billing boundary
         run: node --test tests/security.integration.test.mjs
+      - name: Generate original demo audio and video in private media storage
+        run: |
+          npm run demo:seed
+          npm run demo:seed
+      - name: Verify demo catalog, album queues, seekable audio/video, and cover art
+        run: node --test tests/demo-media.integration.test.mjs
       - name: Verify managed hosting without sudo or DevOne Server
         run: |
           PGPASSWORD=cswtest createdb -h 127.0.0.1 -U csw csw_panel_test
